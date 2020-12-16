@@ -1,10 +1,10 @@
 {***********************************
- * ASV - Application Services v1.0 *
+ * ASV - Application Services v1.1 *
  * Copyright (c)1990 by SoftDesign *
  *  written by Thomas Much         *
  ***********************************
  * entwickelt am:     24.05.1990   *
- * letztes Update am: 08.09.1990   *
+ * letztes Update am: 28.10.1990   *
  ***********************************}
 
 unit asv;
@@ -12,10 +12,8 @@ unit asv;
 
 interface
 
-  uses types;
-
   const _magic     = 18011972;
-        _asv       = 1.0;      _wmax      = 99;
+        _asv       = 1.1;      _wmax      = 99;
         _bmax      = 14;       _imax      = 9;
         M_EXIT     = 255;
         M_OK       = 0;        M_HELP     = 254;
@@ -52,11 +50,35 @@ interface
         K_LF       = 10;       K_FF       = 12;       K_DOWN     = 80;
                                K_LEFT     = 75;       K_RIGHT    = 77;
 
+  type vtype = record
+                 case integer of
+                   0  : (b : byte);
+                   1  : (si : shortint);
+                   2  : (i : integer);
+                   3  : (w : word);
+                   4  : (l : longint);
+                   5  : (bo : boolean);
+                   6  : (c : char);
+                   7  : (s : string);
+                   8  : (r : real);
+                   9  : (sr : single);
+                   10 : (d : double);
+                   11 : (e : extended);
+                   12 : (co : comp);
+               end;
+
+       pvtype = procedure(wnum : byte);
+
   var work        : array [0.._wmax] of string;
       intout      : array [0.._imax] of integer;
       byteout     : array [0.._bmax] of byte;
-      void        : types.void;
+      void        : vtype;
 
+  procedure hide;
+  function left(teil : string; anz : byte) : string;
+  function right(teil : string; anz : byte) : string;
+  function space(anz : byte) : string;
+  function strg(teil : string; anz : byte) : string;
   function kbshift(bits : byte) : boolean;
   procedure showmouse;
   procedure hidemouse;
@@ -67,8 +89,10 @@ interface
   procedure setmouse(mx,my : byte);
   procedure defmouse(smask,cmask : word);
   function attr(ink,pap : byte) : byte;
-  function resource_load(path : string) : integer;
+  function exist(path : string) : boolean;
   procedure cls(att : byte);
+  function dtext(dx,dy : byte; dt : string) : string;
+  function dframe(dx,dy,db,dh : byte; dt : string) : string;
   function dialog : integer;
   function form_alert(title,msg,but : string; def : byte) : integer;
   procedure form_error(num : integer);
@@ -83,7 +107,8 @@ interface
   function menu_pop(wo : byte) : integer;
   procedure menu_setc(was,saw,has,haw,dis,shdw : byte);
   procedure menu_resetc;
-  procedure menu_setp(procv : types.procvar);
+  procedure scrforce(anzx,anzy : byte; avcol : boolean);
+  procedure menu_setp(procv : pvtype);
   procedure menu_resetp;
   procedure menu_attr(num,attrs : byte);
   function menu_stat(num : byte) : byte;
@@ -103,11 +128,9 @@ interface
 
 implementation
 
-  uses dos,crt,proc;
+  uses dos,crt;
 
   const _mmax = 19; _emin = -20; _viormax = 2239;
-        MDA = 0;  CGA   = 1;  EGA  = 2;  EGA_M  = 3;
-        VGA = 4;  VGA_M = 5;  MCGA = 6;  MCGA_M = 7;
 
   var mbegin,mxpos                 : array [0.._mmax] of integer;
       mecurr                       : array [0.._mmax] of byte;
@@ -117,31 +140,74 @@ implementation
       dwork                        : array [0.._wmax] of string;
       bxpos                        : array [0..19] of byte;
       max_entry,m_max,m_stat,m_num : integer;
-      viokarte,anzline,anzcol,loff : integer;
-      ccode,asvierror,menn         : integer;
+      anzline,anzcol,asvierror     : integer;
+      ccode,menn,loff              : integer;
       farbe,mausda,mausvis,menk    : boolean;
       vioseg                       : word;
       vioram                       : array [0.._viormax] of word;
       titleram                     : array [0..169] of word;
-      weissaufschwarz,disabled     : byte;
+      weissaufschwarz,disabled,sc  : byte;
       hellaufschwarz,shadow,dhkpos : byte;
       schwarzaufweiss,hellaufweiss : byte;
       manzbut,menx,meny            : byte;
-      m_pcall                      : types.procvar;
+      m_pcall                      : pvtype;
       dhkstr                       : string[30];
+      sdummy                       : string;
       exitsave                     : pointer;
+      regs                         : registers;
+
+
+procedure hide;
+
+  begin
+    gotoxy(anzcol,anzline);
+  end;
+
+
+function left(teil : string; anz : byte) : string;
+
+  begin
+    left:=copy(teil,1,anz);
+  end;
+
+
+function right(teil : string; anz : byte) : string;
+
+  begin
+    if anz>length(teil) then anz:=length(teil);
+    right:=copy(teil,succ(length(teil)-anz),anz)
+  end;
+
+
+function space(anz : byte) : string;
+
+  begin
+    sdummy:='';
+    if anz>0 then for sc:=1 to anz do sdummy:=sdummy+' ';
+    space:=sdummy;
+  end;
+
+
+function strg(teil : string; anz : byte) : string;
+
+  begin
+    sdummy:='';
+    if anz>0 then for sc:=1 to anz do sdummy:=sdummy+teil;
+    strg:=sdummy;
+  end;
 
 
 function kbshift(bits : byte) : boolean;
 
   begin
-    if (mem[$0040:$0017] and bits)=bits then kbshift:=true
+    regs.ah:=2;
+    intr($16,regs);
+    if (regs.al and bits)=bits then kbshift:=true
       else kbshift:=false;
   end;
 
 
 procedure showmouse;
-  var regs : registers;
 
   begin
     if (m_stat<>2) and mausda then
@@ -154,7 +220,6 @@ procedure showmouse;
 
 
 procedure hidemouse;
-  var regs : registers;
 
   begin
     if (m_stat<>2) and mausda and mausvis then
@@ -167,7 +232,6 @@ procedure hidemouse;
 
 
 function mousex : byte;
-  var regs : registers;
 
   begin
     if mausda then
@@ -181,7 +245,6 @@ function mousex : byte;
 
 
 function mousey : byte;
-  var regs : registers;
 
   begin
     if mausda then
@@ -195,7 +258,6 @@ function mousey : byte;
 
 
 function mouseb : byte;
-  var regs : registers;
 
   begin
     if mausda then
@@ -209,7 +271,6 @@ function mouseb : byte;
 
 
 procedure getmouse(var mx,my,mb : byte);
-  var regs : registers;
 
   begin
     if mausda then
@@ -228,7 +289,6 @@ procedure getmouse(var mx,my,mb : byte);
 
 
 procedure setmouse(mx,my : byte);
-  var regs : registers;
 
   begin
     if mausda then
@@ -244,7 +304,6 @@ procedure setmouse(mx,my : byte);
 
 
 procedure defmouse(smask,cmask : word);
-  var regs : registers;
 
   begin
     if mausda then
@@ -261,27 +320,23 @@ procedure defmouse(smask,cmask : word);
 function attr(ink,pap : byte) : byte;
 
   begin
-    if ink>15 then ink:=15;
-    if pap>15 then pap:=15;
-    attr:=(pap shl 4)+ink;
+    attr:=((pap and 15) shl 4)+(ink and 15);
   end;
 
 
-function resource_load(path : string) : integer;
+function exist(path : string) : boolean;
+  var pdata : searchrec;
 
   begin
-    if exist(path) then
-      begin
-        { ASV-Resource laden }
-        resource_load:=M_ERROR;
-      end
-    else resource_load:=E_NFOUND;
+    findfirst(path,0,pdata);
+    if doserror=0 then exist:=true
+      else exist:=false;
   end;
 
 
 procedure cls(att : byte);
   var catt,vofs : word;
-      q         : integer;
+      q,start   : integer;
 
   begin
     hidemouse;
@@ -289,20 +344,17 @@ procedure cls(att : byte);
     if m_stat<=0 then
       begin
         vofs:=0;
-        for q:=0 to pred(anzcol*anzline) do
-          begin
-            memw[vioseg:vofs]:=catt;
-            inc(vofs,2);
-          end;
+        start:=0;
       end
     else
       begin
         vofs:=anzcol shl 1;
-        for q:=anzcol to pred(anzcol*anzline) do
-          begin
-            memw[vioseg:vofs]:=catt;
-            inc(vofs,2);
-          end;
+        start:=anzcol;
+      end;
+    for q:=start to pred(anzcol*anzline) do
+      begin
+        memw[vioseg:vofs]:=catt;
+        inc(vofs,2);
       end;
     showmouse;
   end;
@@ -321,6 +373,20 @@ procedure setattr(tx,ty,art,len : byte);
   end;
 
 
+function dtext(dx,dy : byte; dt : string) : string;
+
+  begin
+    dtext:=chr(dx)+chr(dy)+dt;
+  end;
+
+
+function dframe(dx,dy,db,dh : byte; dt : string) : string;
+
+  begin
+    dframe:=#255#0+chr(dx)+chr(dy)+chr(db)+chr(dh)+dt;
+  end;
+
+
 procedure but_invert(def,bdw,bypos,was : byte);
   var q : byte;
 
@@ -334,20 +400,29 @@ procedure but_invert(def,bdw,bypos,was : byte);
 
 
 procedure get_dhotkey(num : byte);
-  var pos   : byte;
+  var hpos  : byte;
       dummy : string[1];
 
   begin
-    pos:=instr(dwork[num],'#',1);
-    if pos=length(dwork[num]) then pos:=0;
-    dhkpos:=pos;
-    if pos>0 then
+    hpos:=pos('#',dwork[num]);
+    if hpos=length(dwork[num]) then hpos:=0;
+    dhkpos:=hpos;
+    if hpos>0 then
       begin
-        dummy:=mid(dwork[num],succ(pos),1);
+        dummy:=dwork[num,succ(hpos)];
         dhkstr:=upcase(dummy[1])+dhkstr;
-        dwork[num]:=left(dwork[num],pred(pos))+right(dwork[num],length(dwork[num])-pos);
+        dwork[num]:=left(dwork[num],pred(hpos))+right(dwork[num],length(dwork[num])-hpos);
       end
     else dhkstr:=#0+dhkstr;
+  end;
+
+
+procedure mp_dis(msg : byte; mval : integer);
+
+  begin
+    m_stat:=2;
+    m_pcall(msg);
+    m_stat:=mval;
   end;
 
 
@@ -355,7 +430,7 @@ function dialog_do : integer;
   label derrjmp;
 
   var xp,yp,brt,hhe,dummy,owx,owy,h,b,cflag : byte;
-      dpos,oms,wx,wy,wb                     : byte;
+      dpos,oms,wx,wy,wb,xflag,fb,fh,fy,fyc  : byte;
       taste                                 : char;
       vrnum,vofs,q,banz,bdw,def,bypos,flag  : integer;
       spstr                                 : string[200];
@@ -439,8 +514,42 @@ function dialog_do : integer;
                   end
                 else
                   begin
-                    gotoxy(xp+ord(dwork[q,1]),yp+ord(dwork[q,2]));
-                    write(right(dwork[q],length(dwork[q])-2));
+                    xflag:=ord(dwork[q,1]);
+                    if xflag=255 then
+                      begin
+                        fb:=ord(dwork[q,5]);
+                        fh:=ord(dwork[q,6]);
+                        if (fb>1) and (fh>1) then
+                          begin
+                            xflag:=xp+ord(dwork[q,3]);
+                            fy:=yp+ord(dwork[q,4]);
+                            gotoxy(xflag,fy);
+                            write('⁄',strg('ƒ',fb-2),'ø');
+                            gotoxy(xflag,pred(fy+fh));
+                            write('¿',strg('ƒ',fb-2),'Ÿ');
+                            if (length(dwork[q])>6) and (fb>4) then
+                              begin
+                                cflag:=xflag+(fb shr 1)-((length(dwork[q])-4) shr 1);
+                                if ((fb and 254)=fb) and ((length(dwork[q]) and 254)<>length(dwork[q])) then dec(cflag);
+                                gotoxy(cflag,fy);
+                                write(' ',right(dwork[q],length(dwork[q])-6),' ');
+                              end;
+                            if fh>2 then
+                              for fyc:=0 to fh-3 do
+                                begin
+                                  inc(fy);
+                                  gotoxy(xflag,fy);
+                                  write('≥');
+                                  gotoxy(pred(xflag+fb),fy);
+                                  write('≥');
+                                end;
+                          end;
+                      end
+                    else
+                      begin
+                        gotoxy(xp+xflag,yp+ord(dwork[q,2]));
+                        write(right(dwork[q],length(dwork[q])-2));
+                      end;
                   end;
               end;
             inc(q);
@@ -505,9 +614,7 @@ function dialog_do : integer;
                            byteout[2]:=H_DIAL;
                            if length(dwork[0])>6 then byteout[3]:=ord(dwork[0,7])
                              else byteout[3]:=0;
-                           m_stat:=2;
-                           m_pcall(M_HELP);
-                           m_stat:=oms;
+                           mp_dis(M_HELP,oms);
                            but_invert(def,bdw,bypos,hellaufweiss);
                            showmouse;
                          end;
@@ -527,7 +634,7 @@ function dialog_do : integer;
                   #27: flag:=M_CANCEL;
                 else
                   begin
-                    dpos:=instr(dhkstr,upcase(taste),1);
+                    dpos:=pos(upcase(taste),dhkstr);
                     if (dpos>0) and (dpos<=succ(banz)) then flag:=pred(dpos);
                   end;
                 end;
@@ -568,17 +675,17 @@ function dialog : integer;
 
 
 function form_alert(title,msg,but : string; def : byte) : integer;
-  var q,w,c,pos,bm : integer;
+  var q,w,c,apos,bm : integer;
 
   begin
     dwork[0]:=#255#255+chr(def)+#0;
     dwork[1]:=title;
     q:=2;
-    while (instr(msg,'|',1)>0) and (instr(msg,'|',1)<=length(msg)) do
+    while (pos('|',msg)>0) and (pos('|',msg)<=length(msg)) do
       begin
-        pos:=instr(msg,'|',1);
-        dwork[q]:=#3+chr(q)+left(msg,pred(pos));
-        msg:=right(msg,length(msg)-pos);
+        apos:=pos('|',msg);
+        dwork[q]:=#3+chr(q)+left(msg,pred(apos));
+        msg:=right(msg,length(msg)-apos);
         inc(q);
       end;
     if (q>2) or (length(msg)>0) then
@@ -589,11 +696,11 @@ function form_alert(title,msg,but : string; def : byte) : integer;
     dwork[q]:='';
     inc(q);
     w:=q;
-    while (instr(but,'|',1)>0) and (instr(but,'|',1)<=length(but)) do
+    while (pos('|',but)>0) and (pos('|',but)<=length(but)) do
       begin
-        pos:=instr(but,'|',1);
-        dwork[q]:=left(but,pred(pos));
-        but:=right(but,length(but)-pos);
+        apos:=pos('|',but);
+        dwork[q]:=left(but,pred(apos));
+        but:=right(but,length(but)-apos);
         inc(q);
       end;
     if (q>w) or (length(but)>0) then
@@ -609,12 +716,12 @@ function form_alert(title,msg,but : string; def : byte) : integer;
     dwork[q]:='';
     dwork[succ(q)]:='';
     bm:=0;
-    pos:=0;
+    apos:=0;
     if w>3 then
       for c:=2 to w-2 do if length(dwork[c])>bm then bm:=length(dwork[c]);
-    for c:=w to pred(q) do inc(pos,length(dwork[c])+2);
-    inc(pos,succ(pred(q)-w));
-    if pos>bm then bm:=pos;
+    for c:=w to pred(q) do inc(apos,length(dwork[c])+2);
+    inc(apos,succ(pred(q)-w));
+    if apos>bm then bm:=apos;
     dwork[0]:=dwork[0]+chr(bm+4);
     if w=3 then dwork[0]:=dwork[0]+#3
       else dwork[0]:=dwork[0]+chr(w+3);
@@ -624,33 +731,33 @@ function form_alert(title,msg,but : string; def : byte) : integer;
 
 
 procedure form_error(num : integer);
-  const errmsgd : array [0..11] of string[32] =
-                  (#18'Unbekannter Fehler',
-                   #18'Allgemeiner Fehler',
-                   #29'Resource-Datei nicht gefunden',
-                   #30'Doppelter Aufruf nicht mîglich',
-                   #26'MenÅ noch nicht gezeichnet',
-                   #30'MenÅ au·erhalb des Bildschirms',
-                   #15'MenÅ noch aktiv',
-                   #24'MenÅ nicht initialisiert',
-                   #31'Dialogbox enthÑlt keinen Button',
-                   #24'Fehler in Dialogstruktur',
-                   #17'Dialogbox zu gro·',
-                   #22'Fehler in MenÅstruktur');
+  const errmsgd : array [0..11] of string[31] =
+                  ('Unbekannter Fehler',
+                   'Allgemeiner Fehler',
+                   'Resource-Datei nicht gefunden',
+                   'Doppelter Aufruf nicht mîglich',
+                   'MenÅ noch nicht gezeichnet',
+                   'MenÅ au·erhalb des Bildschirms',
+                   'MenÅ noch aktiv',
+                   'MenÅ nicht initialisiert',
+                   'Dialogbox enthÑlt keinen Button',
+                   'Fehler in Dialogstruktur',
+                   'Dialogbox zu gro·',
+                   'Fehler in MenÅstruktur');
 
-        errmsge : array [0..11] of string[33] =
-                  (#13'Unknown error',
-                   #13'General error',
-                   #23'Resource-file not found',
-                   #32'Double function call not allowed',
-                   #18'Menu not drawn yet',
-                   #18'Menu out of screen',
-                   #15'Menu still used',
-                   #20'Menu not initialized',
-                   #28'Button missing in dialog box',
-                   #25'Error in dialog structure',
-                   #18'Dialog box too big',
-                   #23'Error in menu structure');
+        errmsge : array [0..11] of string[32] =
+                  ('Unknown error',
+                   'General error',
+                   'Resource-file not found',
+                   'Double function call not allowed',
+                   'Menu not drawn yet',
+                   'Menu out of screen',
+                   'Menu still used',
+                   'Menu not initialized',
+                   'Button missing in dialog box',
+                   'Error in dialog structure',
+                   'Dialog box too big',
+                   'Error in menu structure');
 
   var fehler : integer;
 
@@ -661,15 +768,14 @@ procedure form_error(num : integer);
         if num<_emin then num:=0
           else num:=abs(num)-9;
         write(#7);
-        if ccode in [L_USA,L_GB] then void.i:=form_alert('ERROR',mid(errmsge[num],2,ord(errmsge[num,1])),'  #OK  | #Quit ',0)
-          else void.i:=form_alert('FEHLER',mid(errmsgd[num],2,ord(errmsgd[num,1])),'  #OK  |#Abbruch',0);
+        if ccode in [L_USA,L_GB] then void.i:=form_alert('ERROR',errmsge[num],'  #OK  | #Quit ',0)
+          else void.i:=form_alert('FEHLER',errmsgd[num],'  #OK  |#Abbruch',0);
         if void.i=1 then
           begin
             hidemouse;
             writeln;
             write('  Runtime Error ',fehler,' :  ');
-            if ccode in [L_USA,L_GB] then writeln(mid(errmsge[num],2,ord(errmsge[num,1])))
-              else writeln(mid(errmsgd[num],2,ord(errmsgd[num,1])));
+            if ccode in [L_USA,L_GB] then writeln(errmsge[num]) else writeln(errmsgd[num]);
             writeln;
             halt;
           end;
@@ -685,23 +791,23 @@ procedure form_seterrl(cc : integer);
 
 
 procedure get_hotkey(num : byte);
-  var pos   : byte;
+  var hpos  : byte;
       dummy : string[1];
 
   begin
-    pos:=instr(mwork[num],'#',1);
-    mhpos[num]:=pos;
-    if pos=0 then mhkey[num]:=#0
-    else if pos=length(mwork[num]) then
+    hpos:=pos('#',mwork[num]);
+    mhpos[num]:=hpos;
+    if hpos=0 then mhkey[num]:=#0
+    else if hpos=length(mwork[num]) then
       begin
         mhkey[num]:=#0;
         mhpos[num]:=0;
       end
     else
       begin
-        dummy:=mid(mwork[num],succ(pos),1);
+        dummy:=mwork[num,succ(hpos)];
         mhkey[num]:=chr(ord(dummy[1]));
-        mwork[num]:=left(mwork[num],pred(pos))+right(mwork[num],length(mwork[num])-pos);
+        mwork[num]:=left(mwork[num],pred(hpos))+right(mwork[num],length(mwork[num])-hpos);
       end;
   end;
 
@@ -884,9 +990,7 @@ function menu_open(num : integer) : integer;
         setattr(mxpos[num]-1,1,weissaufschwarz,succ(mxpos[num+1]-mxpos[num]));
         if me_anz=0 then
           begin
-            m_stat:=2;
-            m_pcall(mbegin[num]);
-            m_stat:=1;
+            mp_dis(mbegin[num],1);
             hide;
             showmouse;
             repeat
@@ -905,9 +1009,7 @@ function menu_open(num : integer) : integer;
                                hidemouse;
                                byteout[2]:=H_PULL;
                                byteout[3]:=mbegin[num];
-                               m_stat:=2;
-                               m_pcall(M_HELP);
-                               m_stat:=1;
+                               mp_dis(M_HELP,1);
                                hide;
                                showmouse;
                              end;
@@ -976,9 +1078,7 @@ function menu_open(num : integer) : integer;
             textattr:=oldattr;
             if cok=0 then
               begin
-                m_stat:=2;
-                m_pcall(mbegin[num]);
-                m_stat:=1;
+                mp_dis(mbegin[num],1);
                 hide;
                 showmouse;
                 repeat
@@ -996,9 +1096,7 @@ function menu_open(num : integer) : integer;
                                    hidemouse;
                                    byteout[2]:=H_PULL;
                                    byteout[3]:=mbegin[num];
-                                   m_stat:=2;
-                                   m_pcall(M_HELP);
-                                   m_stat:=1;
+                                   mp_dis(M_HELP,1);
                                    hide;
                                    showmouse;
                                  end;
@@ -1019,9 +1117,7 @@ function menu_open(num : integer) : integer;
                 while ((mwork[mbegin[num]+mecurr[num]]='-') or
                   ((attrib[mbegin[num]+mecurr[num]] and A_DISABLED)=A_DISABLED)) do inc(mecurr[num]);
                 menu_einvert(num,xc,xl,0);
-                m_stat:=2;
-                m_pcall(mbegin[num]+mecurr[num]);
-                m_stat:=1;
+                mp_dis(mbegin[num]+mecurr[num],1);
                 hide;
                 showmouse;
                 repeat
@@ -1052,9 +1148,7 @@ function menu_open(num : integer) : integer;
                                    hidemouse;
                                    byteout[2]:=H_PULL;
                                    byteout[3]:=mbegin[num]+mecurr[num];
-                                   m_stat:=2;
-                                   m_pcall(M_HELP);
-                                   m_stat:=1;
+                                   mp_dis(M_HELP,1);
                                    hide;
                                    showmouse;
                                  end;
@@ -1072,9 +1166,7 @@ function menu_open(num : integer) : integer;
                                    while ((mwork[mbegin[num]+mecurr[num]]='-') or
                                      ((attrib[mbegin[num]+mecurr[num]] and A_DISABLED)=A_DISABLED)) do dec(mecurr[num]);
                                    menu_einvert(num,xc,xl,0);
-                                   m_stat:=2;
-                                   m_pcall(mbegin[num]+mecurr[num]);
-                                   m_stat:=1;
+                                   mp_dis(mbegin[num]+mecurr[num],1);
                                    hide;
                                    showmouse;
                                  end;
@@ -1089,9 +1181,7 @@ function menu_open(num : integer) : integer;
                                    while ((mwork[mbegin[num]+mecurr[num]]='-') or
                                      ((attrib[mbegin[num]+mecurr[num]] and A_DISABLED)=A_DISABLED)) do inc(mecurr[num]);
                                    menu_einvert(num,xc,xl,0);
-                                   m_stat:=2;
-                                   m_pcall(mbegin[num]+mecurr[num]);
-                                   m_stat:=1;
+                                   mp_dis(mbegin[num]+mecurr[num],1);
                                    hide;
                                    showmouse;
                                  end;
@@ -1156,9 +1246,7 @@ function menu_odo : integer;
       end;
     until (flag=-5) or (flag=M_CANCEL) or (flag=E_MOUTSCR) or (flag>=M_OK);
     hidemouse;
-    m_stat:=2;
-    m_pcall(M_EXIT);
-    m_stat:=1;
+    mp_dis(M_EXIT,1);
     hide;
     showmouse;
     menu_odo:=flag;
@@ -1180,7 +1268,7 @@ function menu_do : integer;
     for q:=0 to m_max do menu_invert(q,1);
     menu_invert(m_num,0);
     showmouse;
-    clear_keybuf;
+    while keypressed do void.c:=readkey;
     repeat until not(kbshift(ALT));
     if (byteout[0]=KEY_SPEC) and (byteout[1]=K_F10) and (byteout[4]=255) then
       begin
@@ -1210,9 +1298,7 @@ function menu_do : integer;
                        hidemouse;
                        byteout[2]:=H_PULL;
                        byteout[3]:=mbegin[m_num];
-                       m_stat:=2;
-                       m_pcall(M_HELP);
-                       m_stat:=1;
+                       mp_dis(M_HELP,1);
                        hide;
                        showmouse;
                      end;
@@ -1262,7 +1348,7 @@ function menu_do : integer;
     showmouse;
     repeat until not(kbshift(ALT));
     if flag>=M_OK then repeat until mouseb=0;
-    clear_keybuf;
+    while keypressed do void.c:=readkey;
     if flag=-5 then goto altjmp;
     menu_do:=flag;
   end;
@@ -1446,7 +1532,7 @@ function menu_pop(wo : byte) : integer;
   var flag,plen,plmax,q,vrnum,vofs,def,oms : integer;
       taste                                : char;
       mpnum,owx,owy,xp,yp,dtxattr,wx,wy,wb : byte;
-      pos,brt,hhe,cflag,h,b,dflag,dpos     : byte;
+      ppos,brt,hhe,cflag,h,b,dflag,dpos    : byte;
       phkpos,pmattr,spstr                  : string;
       dummy                                : string[1];
 
@@ -1480,13 +1566,13 @@ function menu_pop(wo : byte) : integer;
               dec(plen);
               pmattr:=pmattr+left(dwork[q],1);
               dwork[q]:=right(dwork[q],plen);
-              pos:=instr(dwork[q],'#',1);
-              if (pos>0) and (pos<>plen) then
+              ppos:=pos('#',dwork[q]);
+              if (ppos>0) and (ppos<>plen) then
                 begin
-                  phkpos:=phkpos+chr(pos);
-                  dummy:=mid(dwork[q],succ(pos),1);
+                  phkpos:=phkpos+chr(ppos);
+                  dummy:=dwork[q,succ(ppos)];
                   dhkstr:=dhkstr+upcase(dummy[1]);
-                  dwork[q]:=left(dwork[q],pred(pos))+right(dwork[q],length(dwork[q])-pos);
+                  dwork[q]:=left(dwork[q],pred(ppos))+right(dwork[q],length(dwork[q])-ppos);
                 end
               else
                 begin
@@ -1591,9 +1677,7 @@ function menu_pop(wo : byte) : integer;
                         hidemouse;
                         byteout[2]:=H_POP;
                         byteout[3]:=M_DIS;
-                        m_stat:=2;
-                        m_pcall(M_HELP);
-                        m_stat:=oms;
+                        mp_dis(M_HELP,oms);
                         hide;
                         showmouse;
                       end;
@@ -1612,9 +1696,7 @@ function menu_pop(wo : byte) : integer;
         menu_pinvert(wo+def+2,succ(xp),succ(yp+def),brt-2,0,ord(phkpos[succ(def)]));
         textattr:=dtxattr;
         flag:=M_NOP;
-        m_stat:=2;
-        m_pcall(P_OFFS+def);
-        m_stat:=oms;
+        mp_dis(P_OFFS+def,oms);
         hide;
         showmouse;
         repeat
@@ -1639,9 +1721,7 @@ function menu_pop(wo : byte) : integer;
                            hidemouse;
                            byteout[2]:=H_POP;
                            byteout[3]:=def;
-                           m_stat:=2;
-                           m_pcall(M_HELP);
-                           m_stat:=oms;
+                           mp_dis(M_HELP,oms);
                            hide;
                            showmouse;
                          end;
@@ -1654,9 +1734,7 @@ function menu_pop(wo : byte) : integer;
                            if (def=0) and ((dwork[wo+2]='-') or (ord(pmattr[1])=A_DISABLED)) then def:=hhe-3;
                            while (dwork[wo+def+2]='-') or (ord(pmattr[succ(def)])=A_DISABLED) do dec(def);
                            menu_pinvert(wo+def+2,succ(xp),succ(yp+def),brt-2,0,ord(phkpos[succ(def)]));
-                           m_stat:=2;
-                           m_pcall(P_OFFS+def);
-                           m_stat:=oms;
+                           mp_dis(P_OFFS+def,oms);
                            hide;
                            showmouse;
                          end;
@@ -1669,9 +1747,7 @@ function menu_pop(wo : byte) : integer;
                            if (def=hhe-3) and ((dwork[pred(wo+hhe)]='-') or (ord(pmattr[hhe-2])=A_DISABLED)) then def:=0;
                            while (dwork[wo+def+2]='-') or (ord(pmattr[succ(def)])=A_DISABLED) do inc(def);
                            menu_pinvert(wo+def+2,succ(xp),succ(yp+def),brt-2,0,ord(phkpos[succ(def)]));
-                           m_stat:=2;
-                           m_pcall(P_OFFS+def);
-                           m_stat:=oms;
+                           mp_dis(P_OFFS+def,oms);
                            hide;
                            showmouse;
                          end;
@@ -1683,7 +1759,7 @@ function menu_pop(wo : byte) : integer;
                   #27: flag:=M_CANCEL;
                 else
                   begin
-                    dpos:=instr(dhkstr,upcase(taste),1);
+                    dpos:=pos(upcase(taste),dhkstr);
                     if (dpos>0) and (dpos<=(hhe-2)) then
                       if ord(pmattr[dpos])<>A_DISABLED then flag:=pred(dpos);
                   end;
@@ -1691,9 +1767,7 @@ function menu_pop(wo : byte) : integer;
             end;
         until flag<>M_NOP;
         hidemouse;
-        m_stat:=2;
-        m_pcall(M_EXIT);
-        m_stat:=oms;
+        mp_dis(M_EXIT,oms);
         all_dis:
         q:=pred(yp)*loff+pred(xp)*2;
         vrnum:=0;
@@ -1719,47 +1793,14 @@ function menu_pop(wo : byte) : integer;
 
 
 procedure init;
-  type BPTR = ^byte;
-
-  const viomode : array [0..11] of integer = (MDA,CGA,0,EGA,EGA_M,
-                                              0,VGA_M,VGA,0,MCGA,
-                                              MCGA_M,MCGA);
-
-        egamode : array [0..2] of integer = (EGA,EGA,EGA_M);
-
-  var regs : registers;
 
   begin
-    viokarte:=$ff;
-    regs.ax:=$1a00;
-    intr($10,regs);
-    if regs.al=$1a then
-      begin
-        viokarte:=viomode[regs.bl-1];
-        farbe:=not((viokarte=MDA) or (viokarte=EGA_M));
-      end
-    else
-      begin
-        regs.ah:=$12;
-        regs.bl:=$10;
-        intr($10,regs);
-        if regs.bl<>$10 then
-          begin
-            viokarte:=egamode[(regs.cl shr 1) div 3];
-            farbe:=viokarte<>EGA_M;
-          end;
-      end;
-    regs.ah:=$0f;
+    regs.ah:=15;
     intr($10,regs);
     if regs.al=7 then vioseg:=$b000 else vioseg:=$b800;
-    if viokarte=$ff then
-      begin
-        if regs.al=7 then viokarte:=MDA else viokarte:=CGA;
-        anzline:=25;
-        farbe:=not((regs.al=0) or (regs.al=2) or (regs.al=7));
-      end
-    else anzline:=BPTR(ptr($40,$84))^+1;
-    anzcol:=BPTR(ptr($40,$4a))^;
+    farbe:=not((regs.al=0) or (regs.al=2) or (regs.al=7));
+    anzcol:=regs.ah;
+    anzline:=25;
     loff:=anzcol shl 1;
     regs.ah:=5;
     regs.al:=0;
@@ -1808,10 +1849,21 @@ procedure menu_resetc;
   end;
 
 
+procedure scrforce(anzx,anzy : byte; avcol : boolean);
+
+  begin
+    farbe:=avcol;
+    anzcol:=anzx;
+    anzline:=anzy;
+    loff:=anzcol shl 1;
+    menu_resetc;
+  end;
+
+
 procedure do_nothing(wnum : byte); begin end;
 
 
-procedure menu_setp(procv : types.procvar);
+procedure menu_setp(procv : pvtype);
 
   begin
     m_pcall:=procv;
@@ -1855,16 +1907,6 @@ function menu_text(num : byte) : string;
 
 
 procedure menu_inquire;
-  type DPBPTR    = ^DPB;
-       DPBPTRPTR = ^DPBPTR;
-       DPB       = record
-                     code  : byte;
-                     dummy : array [1..23] of byte;
-                     next  : DPBPTR;
-                   end;
-
-  var regs   : registers;
-      akdpbp : DPBPTR;
 
   begin
     byteout[0]:=weissaufschwarz;
@@ -1878,26 +1920,18 @@ procedure menu_inquire;
     byteout[8]:=0;
     byteout[9]:=0;
     byteout[10]:=manzbut;
-    byteout[11]:=255-mem[$f000:$fffe];
-    if not(byteout[11] in [PC,XT,AT]) then byteout[11]:=PC;
-    byteout[12]:=8;
-    byteout[13]:=9;
+    byteout[11]:=PC;
+    byteout[12]:=28;
+    byteout[13]:=10;
     byteout[14]:=90;
     intout[0]:=ccode;
     intout[1]:=L_USA+L_FRG+L_GB;
     intout[2]:=_emin;
-    intout[3]:=memw[$0040:$0013];
+    intr($12,regs);
+    intout[3]:=regs.ax;
     intout[4]:=0;
-    regs.ah:=$52;
-    msdos(regs);
-    akdpbp:=DPBPTRPTR(ptr(regs.es,regs.bx))^;
-    repeat
-      if akdpbp^.code=0 then inc(intout[4])
-        else inc(intout[4],2 shl pred(akdpbp^.code));
-      akdpbp:=akdpbp^.next;
-    until (ofs(akdpbp^)=$ffff);
     intout[5]:=_viormax;
-    intout[6]:=viokarte;
+    intout[6]:=0;
     intout[7]:=pred(max_entry);
     intout[8]:=0;
     intout[9]:=0;
@@ -1940,7 +1974,6 @@ function mvisible : boolean;
 
 
 procedure mouse_sets(sx,sy : integer);
-  var regs : registers;
 
   begin
     if mausda then
@@ -1963,7 +1996,6 @@ procedure mouse_resets;
 
 
 procedure mouse_sett(dst : integer);
-  var regs : registers;
 
   begin
     if mausda then
@@ -1984,17 +2016,14 @@ procedure mouse_resett;
 
 
 function asverror : integer;
-  var dummy : integer;
 
   begin
-    dummy:=asvierror;
+    asverror:=asvierror;
     asvierror:=0;
-    asverror:=dummy;
   end;
 
 
 procedure asvexit;
-  var regs : registers;
 
   begin
     exitproc:=exitsave;
