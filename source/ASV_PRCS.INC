@@ -1,4 +1,4 @@
-{ ASV 1.4 PRCS vom 20.06.1991 }
+{ ASV 1.5 PRCS vom 18.12.1991 }
 
 function upchar(ch : char) : char;
   var dummy : byte;
@@ -136,6 +136,15 @@ function lower(teil : string) : string;
           teil[q]:=chr(dummy);
         end;
     lower:=teil;
+  end;
+
+
+function sgn(wert : longint) : shortint;
+
+  begin
+    if wert<0 then sgn:=-1
+    else if wert>0 then sgn:=1
+    else sgn:=0;
   end;
 
 
@@ -754,7 +763,7 @@ procedure pushbutton(wnum,com,dat1,dat2 : byte);
     if (dummy>0) and (dummy<length(title)) then
       begin
         hkey:=title[succ(dummy)];
-        title:=left(title,pred(dummy))+right(title,length(title)-dummy);
+        delete(title,dummy,1);
       end
     else hkey:=#0;
     textattr:=saw_dia;
@@ -868,7 +877,7 @@ procedure radiobutton(wnum,com,dat1,dat2 : byte);
     if (dummy>0) and (dummy<length(title)) then
       begin
         hkey:=title[succ(dummy)];
-        title:=left(title,pred(dummy))+right(title,length(title)-dummy);
+        delete(title,dummy,1);
       end
     else hkey:=#0;
     textattr:=saw_dia;
@@ -1000,7 +1009,7 @@ procedure alphainp(wnum,com,dat1,dat2 : byte);
     if (dummy>0) and (dummy<length(title)) then
       begin
         hkey:=title[succ(dummy)];
-        title:=left(title,pred(dummy))+right(title,length(title)-dummy);
+        delete(title,dummy,1);
       end
     else hkey:=#0;
     anstr:=form_getan(wnum);

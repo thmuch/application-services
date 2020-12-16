@@ -1,4 +1,4 @@
-{ ASV 1.4 MENU vom 13.06.1991 }
+{ ASV 1.5 MENU vom 21.12.1991 }
 
 procedure form_seterrl(cc : integer);
 
@@ -31,7 +31,7 @@ procedure get_hotkey(num : byte);
       begin
         dummy:=mwork[num,succ(hpos)];
         mhkey[num]:=chr(ord(dummy[1]));
-        mwork[num]:=left(mwork[num],pred(hpos))+right(mwork[num],length(mwork[num])-hpos);
+        delete(mwork[num],hpos,1);
       end;
   end;
 
@@ -52,7 +52,7 @@ procedure menu_init;
         m_max:=0;
         mbegin[0]:=0;
         mxpos[0]:=3;
-        mxpos[1]:=4+length(mwork[0]);
+        mxpos[1]:=4+length(mwork[0])+(msp_atr and 127);
         repeat
           get_hotkey(wq);
           if length(mwork[wq])=0 then
@@ -63,12 +63,14 @@ procedure menu_init;
                   inc(m_max);
                   mbegin[m_max]:=wq;
                   get_hotkey(wq);
-                  mxpos[succ(m_max)]:=succ(mxpos[m_max])+length(mwork[wq]);
+                  mxpos[succ(m_max)]:=succ(mxpos[m_max])+length(mwork[wq])+(msp_atr and 127);
                 end;
             end;
           inc(wq);
         until (wq=pred(_wmax)) or ((length(mwork[wq])=0) and (length(mwork[succ(wq)])=0));
         max_entry:=wq;
+        if msp_atr>=128 then mxpos[m_max]:=pred(anzcol)-length(mwork[mbegin[m_max]]);
+        mxpos[succ(m_max)]:=succ(mxpos[m_max])+length(mwork[mbegin[m_max]]);
         for wq:=0 to _mmax do mecurr[wq]:=1;
         m_num:=0;
         m_stat:=0;
@@ -83,25 +85,23 @@ procedure menu_init;
 
 
 procedure menu_draw;
-  var dummy,owx,owy : byte;
+  var dtxta : byte;
 
   begin
     asvierror:=0;
     if (m_stat=0) or (m_stat=1) then
       begin
-        dummy:=textattr;
-        owx:=wherex;
-        owy:=wherey;
+        dtxta:=textattr;
         hidemouse;
         if m_stat=0 then
           for wq:=0 to pred(anzcol) do titleram[wq]:=memw[vioseg:(wq shl 1)];
         textattr:=schwarzaufweiss;
         printxy(1,1,space(anzcol));
         for wq:=0 to m_max do printxy(mxpos[wq],1,mwork[mbegin[wq]]);
-        textattr:=dummy;
-        gotoxy(owx,owy);
+        textattr:=dtxta;
         showmouse;
         m_stat:=1;
+        dbut_draw(B_ALL);
       end
     else
       if m_stat=-1 then
@@ -117,14 +117,14 @@ procedure menu_invert(num,was : integer);
   begin
     if was=0 then
       begin
-        setattr(mxpos[num]-1,1,weissaufschwarz,succ(mxpos[num+1]-mxpos[num]));
+        setattr(mxpos[num]-1,1,weissaufschwarz,length(mwork[mbegin[num]])+2);
         if mhpos[mbegin[num]]<>0 then setattr(mxpos[num]+mhpos[mbegin[num]]-1,1,hellaufschwarz,1);
         mp_dis(mbegin[num],1);
         hide;
       end
     else
       begin
-        setattr(mxpos[num]-1,1,schwarzaufweiss,succ(mxpos[num+1]-mxpos[num]));
+        setattr(mxpos[num]-1,1,schwarzaufweiss,length(mwork[mbegin[num]])+2);
         if mhpos[mbegin[num]]<>0 then setattr(mxpos[num]+mhpos[mbegin[num]]-1,1,hellaufweiss,1);
       end;
   end;
@@ -147,9 +147,27 @@ procedure menu_einvert(num,wo,len,was : integer);
   end;
 
 
+function mim_test(x,y : byte) : boolean;
+  var q : byte;
+
+  begin
+    if y>1 then mim_test:=false
+    else
+      begin
+        mim_num:=255;
+        if x=2 then mim_num:=0
+        else if (msp_atr>=128) and (x=pred(mxpos[m_max])) then mim_num:=m_max
+        else
+          for q:=0 to m_max do
+            if (x>=mxpos[q]) and (x<=mxpos[q]+length(mwork[mbegin[q]])) then mim_num:=q;
+        if mim_num=255 then mim_test:=false
+          else mim_test:=true;
+      end;
+  end;
+
+
 function mo_cmouse : integer;
-  var dm_num : integer;
-      q,wb   : byte;
+  var q,wb : byte;
 
   begin
     getmouse(menx,meny,wb);
@@ -157,18 +175,16 @@ function mo_cmouse : integer;
     if (wb and M_LEFT)=M_LEFT then
       begin
         menk:=true;
-        if (meny=1) and (menx>1) and (menx<mxpos[succ(m_max)]) then
+        if mim_test(menx,meny) then
           begin
-            if menx=2 then dm_num:=0
-              else for q:=0 to m_max do if (menx>=mxpos[q]) and (menx<mxpos[succ(q)]) then dm_num:=q;
-            if dm_num<>m_num then
+            if mim_num<>m_num then
               begin
-                m_num:=succ(dm_num);
+                m_num:=succ(mim_num);
                 mo_cmouse:=-3;
               end
             else
               begin
-                menn:=mbegin[dm_num];
+                menn:=mbegin[mim_num];
                 mo_cmouse:=0;
               end;
           end;
@@ -176,18 +192,16 @@ function mo_cmouse : integer;
     else
       begin
         menk:=false;
-        if (meny=1) and (menx>1) and (menx<mxpos[succ(m_max)]) and (mpd_stat=M_DROP) then
+        if (mim_test(menx,meny)) and (mpd_stat=M_DROP) then
           begin
-            if menx=2 then dm_num:=0
-              else for q:=0 to m_max do if (menx>=mxpos[q]) and (menx<mxpos[succ(q)]) then dm_num:=q;
-            if dm_num<>m_num then
+            if mim_num<>m_num then
               begin
-                m_num:=succ(dm_num);
+                m_num:=succ(mim_num);
                 mo_cmouse:=-3;
               end
             else
               begin
-                menn:=mbegin[dm_num];
+                menn:=mbegin[mim_num];
                 mo_cmouse:=0;
               end;
           end
@@ -220,7 +234,7 @@ function menu_open(num : integer) : integer;
       begin
         hidemouse;
         setattr(1,1,schwarzaufweiss,anzcol);
-        setattr(mxpos[num]-1,1,weissaufschwarz,succ(mxpos[num+1]-mxpos[num]));
+        setattr(mxpos[num]-1,1,weissaufschwarz,length(mwork[mbegin[num]])+2);
         if me_anz=0 then
           begin
             mp_dis(mbegin[num],1);
@@ -230,7 +244,7 @@ function menu_open(num : integer) : integer;
               mmret:=mo_cmouse;
               if mmret<0 then flag:=mmret
                 else if menn>=0 then flag:=menn
-                  else if menk and ((meny>1) or (menx<2) or (menx>=mxpos[succ(m_max)])) then flag:=M_CANCEL;
+                  else if (menk) and (not(mim_test(menx,meny))) then flag:=M_CANCEL;
               if keypressed then
                 begin
                   taste:=readkey;
@@ -258,6 +272,8 @@ function menu_open(num : integer) : integer;
                     end;
                 end;
               if kbshift(ALT) then flag:=-5;
+              JRECT.all:=0;
+              menu_event(S_DESK);
             until flag<>M_NOP;
             repeat until not(kbshift(ALT));
             menu_open:=flag;
@@ -298,7 +314,7 @@ function menu_open(num : integer) : integer;
                 repeat
                   mmret:=mo_cmouse;
                   if mmret<0 then flag:=mmret
-                    else if menk and ((meny>1) or (menx<2) or (menx>=mxpos[succ(m_max)])) then flag:=M_CANCEL;
+                    else if (menk) and (not(mim_test(menx,meny))) then flag:=M_CANCEL;
                   if keypressed then
                     begin
                       taste:=readkey;
@@ -322,6 +338,19 @@ function menu_open(num : integer) : integer;
                       else if (taste=#13) or (taste=#27) then flag:=M_CANCEL;
                     end;
                   if kbshift(ALT) then flag:=-5;
+                  JRECT.xr:=succ(xc+xl);
+                  with JRECT do
+                    begin
+                      xl:=xc;
+                      yo:=2;
+                      yu:=me_anz+3;
+                      if farbe then
+                        begin
+                          inc(xr);
+                          inc(yu);
+                        end;
+                    end;
+                  menu_event(S_MENU);
                 until flag<>M_NOP;
               end
             else
@@ -337,20 +366,38 @@ function menu_open(num : integer) : integer;
                 repeat
                   mmret:=mo_cmouse;
                   if mmret<0 then flag:=mmret
-                    else if menk then
-                      begin
+                  else
+                    begin
+                      if mpm_stat<>0 then
                         if (menx>xc) and (menx<succ(xc+xl)) and (meny>2) and (meny<me_anz+3) then
                           begin
-                            if ((mwork[mbegin[num]+meny-2]='-') or
-                              ((attrib[mbegin[num]+meny-2] and A_DISABLED)=A_DISABLED)) then flag:=M_CANCEL
-                            else
+                            if ((mwork[mbegin[num]+meny-2]<>'-') and (mecurr[num]<>meny-2) and
+                              ((attrib[mbegin[num]+meny-2] and A_DISABLED)<>A_DISABLED)) then
                               begin
+                                hidemouse;
+                                menu_einvert(num,xc,xl,1);
                                 mecurr[num]:=meny-2;
-                                flag:=mbegin[num]+mecurr[num];
+                                menu_einvert(num,xc,xl,0);
+                                mp_dis(mbegin[num]+mecurr[num],1);
+                                hide;
+                                showmouse;
                               end;
-                          end
-                        else if menn<0 then flag:=M_CANCEL;
-                      end;
+                          end;
+                      if menk then
+                        begin
+                          if (menx>xc) and (menx<succ(xc+xl)) and (meny>2) and (meny<me_anz+3) then
+                            begin
+                              if ((mwork[mbegin[num]+meny-2]='-') or
+                                ((attrib[mbegin[num]+meny-2] and A_DISABLED)=A_DISABLED)) then flag:=M_CANCEL
+                              else
+                                begin
+                                  mecurr[num]:=meny-2;
+                                  flag:=mbegin[num]+mecurr[num];
+                                end;
+                            end
+                          else if menn<0 then flag:=M_CANCEL;
+                        end;
+                    end;
                   if keypressed then
                     begin
                       taste:=readkey;
@@ -417,6 +464,19 @@ function menu_open(num : integer) : integer;
                         end;
                     end;
                   if kbshift(ALT) then flag:=-5;
+                  JRECT.xr:=succ(xc+xl);
+                  with JRECT do
+                    begin
+                      xl:=xc;
+                      yo:=2;
+                      yu:=me_anz+3;
+                      if farbe then
+                        begin
+                          inc(xr);
+                          inc(yu);
+                        end;
+                    end;
+                  menu_event(S_MENU);
                 until flag<>M_NOP;
               end;
             hidemouse;
@@ -482,10 +542,9 @@ function menu_do : integer;
       getmouse(wx,wy,wb);
       if (wb and M_LEFT)=M_LEFT then
         begin
-          if (wy=1) and (wx>1) and (wx<mxpos[succ(m_max)]) then
+          if mim_test(wx,wy) then
             begin
-              if wx=2 then m_num:=0
-                else for q:=0 to m_max do if (wx>=mxpos[q]) and (wx<mxpos[succ(q)]) then m_num:=q;
+              m_num:=mim_num;
               if length(mwork[succ(mbegin[m_num])])=0 then flag:=mbegin[m_num]
                 else flag:=menu_odo;
             end
@@ -494,12 +553,10 @@ function menu_do : integer;
       else
         if mpd_stat=M_DROP then
           begin
-            if (wy=1) and (wx>1) and (wx<mxpos[succ(m_max)]) then
+            if mim_test(wx,wy) then
               begin
-                if wx=2 then m_num:=0
-                  else for q:=0 to m_max do if (wx>=mxpos[q]) and (wx<mxpos[succ(q)]) then m_num:=q;
-                if length(mwork[succ(mbegin[m_num])])=0 then flag:=mbegin[m_num]
-                  else flag:=menu_odo;
+                m_num:=mim_num;
+                if length(mwork[succ(mbegin[m_num])])>0 then flag:=menu_odo;
               end;
           end;
       if keypressed then
@@ -558,6 +615,8 @@ function menu_do : integer;
               end;
         end;
       if (kbshift(ALT)) or (taste=#27) then flag:=M_CANCEL;
+      JRECT.all:=0;
+      menu_event(S_DESK);
     until flag<>M_NOP;
     hidemouse;
     setattr(1,1,schwarzaufweiss,anzcol);
@@ -573,8 +632,11 @@ function menu_do : integer;
 
 
 function menu_watch : integer;
-  var dummy,owx,owy,q,wx,wy,wb : byte;
+  label mflag_again;
+
+  var dtxta,owx,owy,q,wx,wy,wb : byte;
       mflag                    : boolean;
+      dbe                      : integer;
 
   begin
     if m_stat=1 then
@@ -596,29 +658,38 @@ function menu_watch : integer;
           end;
         getmouse(wx,wy,wb);
         if ((wb and M_LEFT)=M_LEFT) or (mpd_stat=M_DROP) then
-          if (wy=1) and (wx>1) and (wx<mxpos[succ(m_max)]) then
+          if mim_test(wx,wy) then
             begin
               byteout[0]:=KEY_SPEC;
               byteout[1]:=K_F10;
-              if wx=2 then m_num:=0
-              else
-                for q:=0 to m_max do
-                  if (wx>=mxpos[q]) and (wx<mxpos[succ(q)]) then m_num:=q;
+              m_num:=mim_num;
               mflag:=true;
             end;
         if mflag then
           begin
-            dummy:=textattr;
+            mflag_again:
+            dtxta:=textattr;
             owx:=wherex;
             owy:=wherey;
             byteout[4]:=255;
             menu_watch:=menu_do;
-            textattr:=dummy;
+            textattr:=dtxta;
             gotoxy(owx,owy);
             byteout[0]:=KEY_NONE;
             byteout[1]:=0;
           end
-        else menu_watch:=M_NOP;
+        else
+          begin
+            dbe:=dbut_event(wx,wy,wb);
+            if dbe<>-12345 then
+              begin
+                if (byteout[0]=KEY_SPEC) and (byteout[1]=K_F10) then goto mflag_again
+                  else menu_watch:=dbe;
+              end
+            else menu_watch:=M_NOP;
+          end;
+        JRECT.all:=0;
+        menu_event(S_DESK);
       end
     else if m_stat=2 then menu_watch:=E_NREENT
     else menu_watch:=M_ERROR;
@@ -791,7 +862,7 @@ function menu_pop(wo : byte) : integer;
                   phkpos:=phkpos+chr(ppos);
                   dummy:=dwork[q,succ(ppos)];
                   dhkstr:=dhkstr+upchar(dummy[1]);
-                  dwork[q]:=left(dwork[q],pred(ppos))+right(dwork[q],length(dwork[q])-ppos);
+                  delete(dwork[q],ppos,1);
                 end
               else
                 begin
@@ -818,6 +889,7 @@ function menu_pop(wo : byte) : integer;
           end;
         brt:=plmax+4;
         hhe:=succ(pred(q)-wo);
+        if length(work[succ(wo)])+2>brt-2 then brt:=length(work[succ(wo)])+4;
         if xp=255 then xp:=succ((anzcol-brt) shr 1);
         if yp=255 then yp:=succ((anzline shr 1)-(hhe shr 1));
         if xp<1 then xp:=1;
@@ -884,6 +956,19 @@ function menu_pop(wo : byte) : integer;
               getmouse(wx,wy,wb);
               if (wb and M_LEFT)=M_LEFT then
                 if ((wx<=xp) or (wx>=pred(xp+brt)) or (wy<=yp) or (wy>=pred(yp+hhe))) then taste:=#27;
+              with JRECT do
+                begin
+                  xl:=xp;
+                  yo:=yp;
+                  xr:=xp+brt;
+                  yu:=yp+hhe;
+                  if not(farbe) then
+                    begin
+                      dec(xr);
+                      dec(yu);
+                    end;
+                end;
+              menu_event(S_MENU);
             until (taste=#13) or (taste=#27);
             flag:=M_CANCEL;
             hidemouse;
@@ -900,6 +985,20 @@ function menu_pop(wo : byte) : integer;
         showmouse;
         repeat
           getmouse(wx,wy,wb);
+          if mpm_stat<>0 then
+            if ((wx>xp) and (wx<pred(xp+brt)) and (wy>yp) and (wy<pred(yp+hhe))) then
+              begin
+                if (dwork[wo+pred(wy-yp)+2]<>'-') and (ord(pmattr[wy-yp])<>A_DISABLED) and (def<>pred(wy-yp)) then
+                  begin
+                    hidemouse;
+                    menu_pinvert(wo+def+2,succ(xp),succ(yp+def),brt-2,1,ord(phkpos[succ(def)]));
+                    def:=pred(wy-yp);
+                    menu_pinvert(wo+def+2,succ(xp),succ(yp+def),brt-2,0,ord(phkpos[succ(def)]));
+                    mp_dis(P_OFFS+def,oms);
+                    hide;
+                    showmouse;
+                  end;
+              end;
           if (wb and M_LEFT)=M_LEFT then
             begin
               if ((wx<=xp) or (wx>=pred(xp+brt)) or (wy<=yp) or (wy>=pred(yp+hhe))) then flag:=M_CANCEL
@@ -964,6 +1063,19 @@ function menu_pop(wo : byte) : integer;
                   end;
                 end;
             end;
+          with JRECT do
+            begin
+              xl:=xp;
+              yo:=yp;
+              xr:=xp+brt;
+              yu:=yp+hhe;
+              if not(farbe) then
+                begin
+                  dec(xr);
+                  dec(yu);
+                end;
+            end;
+          menu_event(S_MENU);
         until flag<>M_NOP;
         hidemouse;
         mp_dis(M_EXIT,oms);
@@ -1029,6 +1141,15 @@ procedure menu_setschr(ccode : byte);
 
   begin
     if (ccode<>0) and (ccode<>32) and (ccode<>255) then sel_char:=ccode;
+  end;
+
+
+procedure menu_space(attr : byte);
+
+  begin
+    if attr>130 then attr:=130;
+    if attr<128 then if attr>2 then attr:=2;
+    msp_atr:=attr;
   end;
 
 

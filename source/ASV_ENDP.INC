@@ -1,4 +1,4 @@
-{ ASV 1.4 ENDP vom 13.06.1991 }
+{ ASV 1.5 ENDP vom 18.12.1991 }
 
 function _scrx : byte;
 
@@ -132,7 +132,7 @@ procedure asv_init;
     anzcol:=regs.ah;
     loff:=anzcol shl 1;
     if not(adapfound) then anzline:=25
-      else anzline:=byteptr(ptr($40,$84))^+1;
+      else anzline:=succ(BYTEPTR(ptr($40,$84))^);
     regs.ah:=5;
     regs.al:=0;
     intr($10,regs);

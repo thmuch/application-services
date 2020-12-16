@@ -1,4 +1,4 @@
-{ ASV 1.4 OBJC vom 13.06.1991 }
+{ ASV 1.5 OBJC vom 20.12.1991 }
 
 procedure form_setslsdelay(dl : word);
 
@@ -386,21 +386,28 @@ procedure horslider(wnum,com,dat1,dat2 : byte);
   end;
 
 
-function stn(var strng : string; ch : char) : integer;
+function sts(var strng : string; ch : char) : string;
   var p : byte;
 
   begin
     p:=pos(ch,strng);
     if p>0 then
       begin
-        stn:=atoi(left(strng,pred(p)));
+        sts:=left(strng,pred(p));
         strng:=right(strng,length(strng)-p);
       end
     else
       begin
-        stn:=atoi(strng);
+        sts:=strng;
         strng:='';
       end;
+  end;
+
+
+function stn(var strng : string; ch : char) : integer;
+
+  begin
+    stn:=atoi(sts(strng,ch));
   end;
 
 
@@ -764,7 +771,7 @@ procedure liste(wnum,com,dat1,dat2 : byte);
                      dummy:=pfad;
                      for q:=0 to exanz do dummy:=dummy+extension[q]+',';
                      cutr(dummy);
-                     dummy:=right(dummy,43);
+                     if length(dummy)>43 then dummy:=left(dummy,40)+'...';
                      printxy(oxp+2,oyp+3,dummy+space(43-length(dummy)));
                      get_files(pfad);
                      verslider(15,0,0,0);
@@ -892,7 +899,7 @@ procedure liste(wnum,com,dat1,dat2 : byte);
                        dummy:=pfad;
                        for q:=0 to exanz do dummy:=dummy+extension[q]+',';
                        cutr(dummy);
-                       dummy:=right(dummy,43);
+                       if length(dummy)>43 then dummy:=left(dummy,40)+'...';
                        printxy(oxp+2,oyp+3,dummy+space(43-length(dummy)));
                        get_files(pfad);
                        verslider(15,0,0,0);
@@ -963,20 +970,39 @@ function fileselect(title,path,exts,default : string) : string;
     pfad:=path;
     work[0]:=chr(fox)+chr(foy)+#0#0#47#20+chr(byteout[4]);
     work[1]:=left(title,35);
-    work[2]:=dtext(2,2,'Dateien in:');
+    if (ccode=L_USA) or (ccode=L_GB) then
+      begin
+        work[2]:=dtext(2,2,'Files of:');
+        work[9]:=#255+chr(lnr)+#2#5#16#12#2#2'F';
+      end
+    else
+      begin
+        work[2]:=dtext(2,2,'Dateien in:');
+        work[9]:=#255+chr(lnr)+#2#5#16#12#2#2'D';
+      end;
     dummy:=path;
     for q:=0 to exanz do dummy:=dummy+extension[q]+',';
     cutr(dummy);
-    work[3]:=dtext(2,3,right(dummy,43));
+    if length(dummy)>43 then work[3]:=dtext(2,3,left(dummy,40)+'...')
+      else work[3]:=dtext(2,3,dummy);
     work[4]:=dframe(2,5,16,12,'');
     work[5]:=dframe(22,10,18,7,'');
-    work[6]:=dtext(23,9,'Verzeichnisse:');
+    if (ccode=L_USA) or (ccode=L_GB) then
+      begin
+        work[6]:=dtext(23,9,'Directories:');
+        work[10]:=#255+chr(lnr)+#22#10#18#7#23#9'D';
+      end
+    else
+      begin
+        work[6]:=dtext(23,9,'Verzeichnisse:');
+        work[10]:=#255+chr(lnr)+#22#10#18#7#23#9'V';
+      end;
     work[7]:='';
-    work[8]:=dalpha(19,6,13,12,B_ENABLED,'Datei#name:',default);
-    work[9]:=#255+chr(lnr)+#2#5#16#12#2#2'D';
-    work[10]:=#255+chr(lnr)+#22#10#18#7#23#9'V';
+    if (ccode=L_USA) or (ccode=L_GB) then work[8]:=dalpha(20,6,13,12,B_ENABLED,'File#name:',default)
+      else work[8]:=dalpha(19,6,13,12,B_ENABLED,'Datei#name:',default);
     work[11]:='  #OK  ';
-    work[12]:='#Abbruch';
+    if (ccode=L_USA) or (ccode=L_GB) then work[12]:='#Cancel'
+      else work[12]:='#Abbruch';
     work[13]:='';
     work[14]:='';
     work[15]:=dvslider(17,6,10,0,0);
@@ -1001,6 +1027,6 @@ procedure objc_init;
     hslnum:=form_objins(horslider);
     form_setslsdelay(75);
     form_setslmdelay(150);
-    fox:=255;
-    foy:=255;
+    fox:=255; foy:=255;
+    clx:=255; cly:=255;
   end;

@@ -1,4 +1,4 @@
-{ ASV 1.4 ALRT vom 13.06.1991 }
+{ ASV 1.5 ALRT vom 15.12.1991 }
 
 function _dactive : byte;
 
@@ -84,6 +84,14 @@ function form_alert(title,msg,but : string; def : byte) : integer;
     for c:=w to pred(q) do inc(apos,length(dwork[c])+2);
     inc(apos,succ(pred(q)-w));
     if apos>bm then bm:=apos;
+    if (dbits and D_CLOSE)=D_CLOSE then
+      begin
+        if bm<length(title)+10 then bm:=length(title)+10;
+      end
+    else
+      begin
+        if bm<length(title) then bm:=length(title);
+      end;
     dwork[0]:=dwork[0]+chr(bm+4);
     if w=3 then dwork[0]:=dwork[0]+#3
       else dwork[0]:=dwork[0]+chr(w+3);
@@ -110,8 +118,8 @@ procedure form_errexit(stat : byte);
 procedure menu_sets(stat : byte);
 
   begin
-    if stat>M_DROP then stat:=M_PULL;
-    mpd_stat:=stat;
+    mpd_stat:=(stat and M_DROP);
+    mpm_stat:=M_NMOVE-(stat and M_NMOVE);
   end;
 
 

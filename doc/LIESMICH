@@ -1,0 +1,1234 @@
+"Application Services 1.5" vom 21.12.1991 \\\ ErgÑnzungen zum Handbuch
+=======================================================================
+
+Um die "Application Services" auch unter TurboPascal 5.5 benutzen
+zu kînnen, mu· man die Datei ASV.TPU aus dem Unterverzeichnis \TP55
+verwenden (bzw. fÅr Version 6.0 aus dem Verzeichnis \TP60).
+
+Sollten Sie die Hotline benutzen, stellen Sie vorher sicher, da· Sie
+  - die Versionsnummer der Application Services kennen (_asv, s. I,2)
+  - Ihre Rechnerkonfiguration kennen (Speicherausbau, Grafikkarte etc.)
+  - Ihr Problem exakt beschreiben kînnen
+                                             Danke.
+
+ACHTUNG: Die Strings im work[]-Feld kînnen maximal 90 Zeichen lang
+         sein. Die Definition in Anhang A ist also falsch.
+         Korrekt wÑre
+
+                 var work : array [0.._wmax] of string[90];
+
+         ZusÑtzlich hinzugekommen ist die Konstante _womax mit dem
+         Wert 4 und folgendes Word-Array, das au·er von menu_inquire
+         nicht verÑndert wird:
+
+                 var wordout : array [0.._womax] of word;
+
+         Die Konstante _dobjmax mit dem Wert 19 gibt die maximale
+         Anzahl der mîglichen Dialogobjekte minus 1 (s. Anhang D) an.
+         _dbutmax (19) gibt die Anzahl der verfÅgbaren Desktop-Buttons
+         minus 1 an (s. Anhang E). _jobmax schlie·lich bezeichnet die
+         Anzahl der zusÑtzlich zum Hauptprogramm mîglichen PMT-Jobs
+         (Pseudo-Multitasking-Prozeduren) minus 1 (s. Anhang F).
+         Neu ist auch die Variable regs vom Typ registers, die kurz-
+         zeitig fÅr Betriebssystemaufrufe genutzt werden kann. Nach
+         dem Aufruf einer ASV-Routine kînnen sich die Register-Inhalte
+         verÑndert haben! Au·erdem gibt es nun die Typen WORDPTR und
+         BYTEPTR fÅr Zeiger auf Word- und Bytevariablen.
+         Der Typ JREC bezeichnet einen varianten Record von 32 Bit
+         LÑnge. Es kînnen die Instanzen .all, .pos/.size und .xl/.yo/
+         .xr/.yu angesprochen werden. ASV stellt die Variable JRECT
+         dieses Typs zur VerfÅgung. Sie wird von den Rechteckfunktio-
+         nen (s. VI, 4) benîtigt.
+
+WICHTIG: Der Stack darf nicht zu niedrig gewÑhlt werden, wenn er mit
+         der Compilerdirektive {$M Stack, HeapMin, HeapMax} verÑndert
+         wird! FÅr die Application Services sollten mind. 6 KB zur
+         VerfÅgung gestellt werden. Soll das Verschieben von Dialog-
+         boxen mîglich sein, mu· auch der Heap eine Mindestgrî·e
+         von ca. 4 KB besitzen.
+         Die Unit ASVOBJ ist ab jetzt in der Unit ASV integriert.
+         Dadurch konnte die Prozedur obj_setcolor() wegfallen, da alle
+         ehemaligen ASVOBJ-Routinen nun direkten Zugriff auf die aktu-
+         ellen Farbwerte etc. haben.
+
+
+Erweiterungen der alten Routinen
+--------------------------------
+ II MenÅverwaltung
+   1.2.2 Prozedur menu_draw
+        Diese Routine ruft jetzt zusÑtzlich die Prozedur dbut_draw mit
+        dem Parameter B_ALL auf, so da· alle bis zu diesem Zeitpunkt
+        initialisierten Desktop-Buttons automatisch gezeichnet werden.
+
+   1.2.3 Funktion menu_watch
+        menu_watch ruft jetzt auch den PMT-Scheduler auf (s. Anhang F).
+        Der Åbergebene Status ist dabei S_DESK. ZusÑtzlich werden auch
+        evtl. installierte Desktop-Buttons Åberwacht (s. Anhang E).
+        Wird ein solcher Button angewÑhlt und ist dieser keinem MenÅ-
+        eintrag zugeordnet, wird B_OFFS+(Button-Nr.) zurÅckgeliefert.
+
+   1.2.11 Prozedur menu_inquire
+      Bei dieser Routine sind einige neue Ausgabewerte dazugekommen:
+
+        byteout[6] :  Status-Flag der MenÅzeile (s. II, 3.6)
+        byteout[7] :  Exit-Status der Fehlermeldungen (s.III, 2.7)
+        byteout[8] :  Anzahl der freien Dialog-Objektspeicher
+                      (0.._dobjmax+1)
+        byteout[9] :  Zeichencode des "selected"-Zeichens
+        byteout[15] : Farbwert fÅr invertierte Schrift (Dialogboxen)
+        byteout[16] : Farbwert fÅr helle invertierte Schrift (")
+        byteout[17] : Farbwert fÅr invertierte Schrift (Alertboxen)
+        byteout[18] : Farbwert fÅr helle invertierte Schrift (")
+        byteout[19] : Farbwert fÅr invertierte Schrift (Popup-MenÅs)
+        byteout[20] : Farbwert fÅr helle invertierte Schrift (")
+        byteout[21] : Farbwert fÅr nicht anwÑhlbare EintrÑge (")
+        byteout[22] : Objektnummer der Pushbutton-Routine
+        byteout[23] :     "         "  Radiobutton-Routine
+        byteout[24] :     "         "  alphanum. Eingabefelder
+                      Die letzten drei Werte kînnen zusammen mit
+                      form_objreplace() verwendet werden, wenn man
+                      entsprechende eigene Routinen verwenden mîchte.
+        byteout[25] : Flag, das den Zwischenraum der MenÅtitel angibt
+                      (s. II, 3.7)
+        byteout[26] : reserviert, immer 0
+        byteout[27] :     "         "
+        byteout[28] :     "         "
+        byteout[29] :     "         "
+
+        intout[5] :  Anzahl der Bytes, die zur Speicherung des Hinter-
+                     grundes bei MenÅs etc. reserviert werden
+        intout[6] :  letzte Fehlernummer
+                     (wird nach der Abfrage NICHT gelîscht!)
+        intout[8] :  Mausempfindlichkeit X
+        intout[9] :  Mausempfindlichkeit Y
+        intout[10] : Schwellenwert fÅr doppelte Mausgeschwindigkeit
+        intout[11] : reserviert, immer 0
+        intout[12] :     "         "
+        intout[13] :     "         "
+        intout[14] :     "         "
+
+        wordout[0] : Attributwert der Dialogboxen (s. III, 2.6)
+        wordout[1] : Segmentadresse des Bildschirmspeichers
+        wordout[2] : Zeilenoffset des Bildschirmspeichers in Bytes
+        wordout[3] : reserviert, immer 0
+        wordout[4] :     "         "
+
+   2.2.1 Funktion menu_pop()
+        Es wird nun automatisch auf die LÑnge des Titels geachtet und
+        das Popup-MenÅ evtl. verbreitert.
+
+   3.2 Prozedur menu_resetc
+      Die Standardwerte im Farbmodus lauten nun attr(lightgray,black),
+      attr(black,lightgray),attr(green,black),attr(red,lightgray),
+      attr(DARKGRAY,lightgray) und attr(DARKGRAY,black). ZusÑtzlich
+      wird die Routine form_extcol() mit den Werten attr(yellow,cyan),
+      attr(blue,cyan),attr(yellow,red),attr(black,red),attr(black,
+      lightgray),attr(RED,lightgray) und attr(darkgray,lightgray)
+      aufgerufen.
+
+III Dialogverwaltung
+   2.1 Funktion form_alert()
+      Es wird nun automatisch auf die LÑnge des Titels geachtet und
+      die Alertbox evtl. verbreitert.
+
+   2.4 Funktion dialog
+      Bei dieser Funktion kînnen nun auch automatisch Rahmen (optional
+      mit Titel) gezeichnet werden. Dazu wird im work[]-Feld statt
+      eines Text-Eintrags folgende Struktur verwendet:
+
+      "#255#0+chr(x_offs)+chr(y_offs)+chr(breite)+chr(hoehe)+titel"
+
+      Der X- und Y-Versatz sind wie beim Text relativ zur linken oberen
+      Ecke. breite und hoehe werden in Zeichen angegeben. titel kann
+      auch ein Leerstring sein. Mit den Funktionen dtext() und dframe()
+      lassen sich Dialogboxen recht Åbersichtlich programmieren (aller-
+      dings auf Kosten von Rechenzeit und Speicherplatz).
+
+
+Neue Prozeduren & Funktionen
+----------------------------
+ II MenÅverwaltung
+   3.5 Prozedur menu_setschr(ccode : byte)
+      Diese Routine setzt das Zeichen fÅr das Attribut "selected".
+      Alle Zeichenwerte au·er 0,32 & 255 sind zulÑssig, Standard=7.
+
+        Beispiel:  menu_setschr(251);  {"selected"-Zeichen = '˚'}
+
+   3.6 Prozedur menu_sets(stat : byte)
+      Legt fest, ob die MenÅs der MenÅzeile als Pulldown- (M_PULL) oder
+      als Dropdown-MenÅs (M_DROP) behandelt werden. Pulldown-MenÅs
+      klappen erst dann herunter, wenn der jeweilige MenÅtitel ange-
+      klickt wurde. Dropdown-MenÅs werden bereits durch einfaches be-
+      rÅhren mit dem Mauscursor aktiviert. Wird zu dem Status noch
+      M_NMOVE addiert, folgt der aktive MenÅeintrag NICHT automatisch
+      dem Mauscursor.
+
+        Beispiel:  menu_sets(M_DROP);  {Default-Einstellung}
+
+   3.7 Prozedur menu_space(attr : byte)
+      Bestimmt den Abstand der MenÅtitel. Erlaubt sind die Werte
+      S_SMALL (normal), S_MID und S_WIDE. Wird zu diesem Wert noch
+      S_LRIGHT addiert, wird das letzte MenÅ ganz rechts angezeigt.
+
+        Beispiel: menu_space(S_MID+S_LRIGHT);
+
+   3.8 Prozedur menu_event(stat : byte)
+      Ruft den PMT-Scheduler auf und Åbergibt an die Jobs den Status
+      stat. Wenn Sie sich sicher sind, da· z.Z. der gesamte Bildschirm
+      (au·er der MenÅzeile) fÅr eigene Zwecke verwendet werden kann
+      (d.h. es ist kein MenÅ oder Dialog aktiv), sollte S_DESK Åber-
+      geben werden, damit die Jobs den Bildschirm nutzen kînnen. Sind
+      Sie sich nicht sicher, ob der Bildschirm anderweitig benîtigt
+      wird, Åbergeben Sie S_UNKNOWN (oder kÅrzer 0), damit die Jobs
+      die Variable JRECT nicht auswerten (die Sie allerdings auch
+      selber beschreiben kînnen). In stat kînnen natÅrlich auch andere
+      Werte Åbergeben werden (z.B. um nur ganz spezielle Jobs anzu-
+      sprechen), allerdings mÅssen Sie sich dann schon recht gut mit
+      der PMT-Programmierung auskennen. Bedenken Sie auch, da· die
+      Bits 0..2 schon belegt und die Bits 3..4 fÅr Softdesign RESER-
+      VIERT sind (als Werte kommen also nur 32, 64 und 128 in Frage).
+
+III Dialogverwaltung
+   2.4.1 Funktion dtext(dx,dy : byte; dt : string) : string
+        Diese Funktion erzeugt einen work[]-Eintrag, der einer
+        Textzeile entspricht. dx und dy sind der relative Versatz
+        zur linken oberen Ecke, dt ist der eigentliche Text.
+
+   2.4.2 Funktion dframe(dx,dy,db,dh : byte; dt : string) : string
+        Mit dieser Funktion wird ein work[]-Eintrag fÅr einen
+        Textrahmen erzeugt. dx und dy sind der relative Versatz zur
+        linken oberen Ecke der Dialogbox, db und dh sind die Breite
+        und Hîhe des Rahmens in Zeichen. dt ist der Titel des
+        Rahmens.
+
+   2.5 Prozedur form_extcol(sdia,hdia,sale,hale,spop,hpop,dpop : byte)
+      Diese Prozedur setzt spezielle Farbwerte fÅr Dialog- bzw. Alert-
+      boxen und Popup-MenÅs. Die Einstellungen werden von menu_setc
+      bzw. menu_resetc rÅckgÑngig gemacht.
+      sdia gibt den Farbwert fÅr invertierte Schrift, hdia den Farbwert
+      fÅr helle invertierte Schrift bei Dialogboxen an. Analog gilt
+      dies fÅr Alertboxen und Popup-MenÅs. Bei letzteren wird mit dpop
+      zusÑtzlich noch ein Farbwert fÅr nicht anwÑhlbarte EintrÑge
+      Åbergeben.
+
+   2.6 Prozedur form_setattr(bits : word)
+      Mit dieser Prozedur kann eingestellt werden, ob Dialogboxen durch
+      Anklicken der obersten Zeile verschoben und durch Anklicken des
+      '[˛]'-Feldes links oben in der Box geschlossen werden kînnen.
+      D_CLOSE aktiviert das Schlie·feld, bei der Anwahl erhÑlt man
+      M_CANCEL (=<Esc>) zurÅck. D_MOVE ermîglicht das Verschieben, die
+      neuen Koordinaten stehen (nach der AusfÅhrung von fn dialog) in
+      byteout[0] (X) und byteout[1] (Y). Da Alertboxen IMMER zentriert
+      erscheinen, ist das Auswerten von byteout[] hierbei nutzlos.
+      ACHTUNG: Die Application Services legen zum Verschieben einen
+      temporÑren Speicher an. Gelingt dieses jedoch nicht (weil auf
+      dem Heap kein Platz mehr ist ...), kann die Box nicht verschoben
+      werden! Ist D_MOVE gesetzt, kann die Box auch mit <Shift>+
+      <Cursortasten> bewegt werden. Ist D_GRAF gesetzt, wird bei jedem
+      Aufruf von Dialog- bzw. Alertboxen und Popup-MenÅs zuerst ein
+      sich vergrî·erndes Rechteck gezeichnet. Das kostet zwar Zeit,
+      ist aber benutzerfreundlicher. Soll keine der zusÑtzlichen
+      Mîglichkeiten genutzt werden, Åbergibt man D_NONE.
+
+        Beispiel:  form_setattr(D_CLOSE+D_MOVE+D_GRAF);  {Default}
+
+   2.7 Prozedur form_errexit(stat : byte)
+      Diese Routine bestimmt, ob bei einer Fehlermeldung mit
+      form_error() ein "Abbruch"-Button vorhanden ist (X_CANCEL),
+      ein "OK"-Button (X_OK) oder beides (X_BOTH).
+
+        Beispiel:  form_errexit(X_BOTH);  {Default-Einstellung}
+
+
+   Mit folgenden Routinen kînnen die erweiterten Dialogelemente
+   (Push-/Radiobuttons & Eingabefelder) genutzt werden. Die neuen
+   Elemente mÅssen dabei immer unmittelbar VOR den Buttons der
+   Dialogbox in das work[]-Feld eingetragen sein (s. MENUDEMO.PAS).
+   Mit [<Shift>+]<Tab> kann in der Reihenfolge durch die Elemente
+   gewechselt werden, in der sie im work[]-Feld stehen. Aus alpha-
+   numerischen Eingabefeldern kînnen Hotkeys nur dann aufgerufen
+   werden, wenn zuvor <Alternate> gedrÅckt wurde! Die Programmierung
+   eigener Dialogobjekte wird in Anhang D beschrieben.
+
+   2.8 Funktion dpush(dx,dy,ds : byte; dt : string) : string
+      Mit dieser Funktion wird ein Pushbutton-Eintrag fÅr das
+      work[]-Feld erzeugt. dx und dy geben den relativen Versatz zur
+      linken oberen Ecke der Dialogbox an. ds gibt den Status des
+      Buttons an (s.u.). Der Titel steht in dt und wird rechts neben
+      den Button geschrieben. Der Hotkey wird auch hierbei mit einem
+      Doppelkreuz gekennzeichnet.
+
+          ds: B_OFF      = aus (' ')
+              B_ON       = an  ('X')
+              B_NXON     = Wert beibehalten ('-'); bei Anwahl -> 'X'
+              B_NXOFF    = Wert beibehalten ('-'); bei Anwahl -> ' '
+              B_DISABLED = Button kann nicht angewÑhlt werden
+
+   2.8.1 Prozedur form_setpb(wnum,ds : byte)
+        Diese Routine setzt den Pushbutton in work[wnum] auf den
+        Status ds (s. 2.8).
+
+   2.8.2 Funktion form_getpb(wnum : byte) : byte
+        Liefert den Status des Pushbuttons in work[wnum].
+
+   2.9 Funktion dradio(dx,dy,dn,ds : byte; dt : string) : string
+      Diese Funktion ist fÅr Radiobuttons zustÑndig. dx und dy geben
+      den Versatz an, dn gibt die Nummer des Radiobuttons an. Zusammen-
+      gehîrige Buttons mÅssen die gleiche Nummer besitzen! ds enthÑlt
+      den Status des Buttons (B_OFF, B_ON, B_DISABLED). In dt steht
+      der Titel (incl. Hotkey, wird rechts vom Button geschrieben).
+
+      Bei Radiobuttons kann nur ein Button aus einer Gruppe aktiv
+      sein, alle anderen werden bei seiner Anwahl deaktiviert. Beim
+      Aufruf der Dialogfunktion sollte nur ein Button aus einer Gruppe
+      aktiv sein; ist keiner aktiv, wird der erste automatisch akti-
+      viert. Radiobuttons mit gleicher Nummer sollten im work[]-Feld
+      beieinander stehen.
+
+   2.9.1 Prozedur form_setrb(wnum,ds : byte)
+        Setzt den Status des Radiobuttons in work[wnum] (s. 2.8).
+        ACHTUNG: Die anderen Radiobuttons der gleichen Gruppe werden
+                 nicht automatisch deaktiviert!
+
+   2.9.2 Funktion form_getrb(wnum : byte) : byte
+        öbergibt den Status des Radiobuttons in work[wnum].
+
+   2.9.3 Funktion form_findrb(von,bis,dn : byte) : byte
+        Liefert die work[]-Nummer des aktiven Radiobuttons mit der
+        Nummer dn. Gesucht wird in work[von..bis]. Wird kein aktiver
+        Button gefunden, erhÑlt man als RÅckgabe F_NONE.
+
+   2.10 Funktion dalpha(dx,dy,db,dmb,ds : byte; dt,cont:string):string
+       Alphanumerische Eingabefelder dienen zur Eingabe von Zahlen und
+       Buchstaben (mu· von jeweiligen Programm entsprechend ausgewertet
+       werden). dx und dy geben den Versatz an, db bestimmt die Breite
+       des Eingabefeldes auf dem Bildschirm. Mit dmb kann angegeben
+       werden, wie lang Zeichenketten in diesem Feld maximal sein
+       kînnen (der Text wird beim öberschreiten von db entsprechend
+       verschoben). dt enthÑlt den Titel (mit Hotkey, wird links vom
+       Eingabefeld geschrieben), cont gibt den Inhalt des Eingabefeldes
+       an (bzw. Leerstring). Mit ds wird angegeben, ob das Eingabefeld
+       disabled ist (B_DISABLED) oder nicht (B_ENABLED).
+       Ein aktives Eingabefeld kann mit <Ctrl>+<Y> gelîscht werden.
+       WICHTIG: Man sollte darauf achten, da· dt und cont zusammen
+                nicht mehr als 80 Zeichen lang sind bzw. sein kînnen
+                (der Rest wird abgeschnitten)! dt allein kann nicht
+                lÑnger als 76 Zeichen sein.
+
+   2.10.1 Prozedur form_setan(wnum : byte; cont : string)
+         Setzt den Inhalt des Eingabefeldes in work[wnum].
+
+   2.10.2 Funktion form_getan(wnum : byte) : string
+         Liefert den Inhalt des Eingabefeldes in work[wnum].
+
+   2.10.3 Prozedur form_setans(wnum,ds : byte)
+         Setzt den Status des Eingabefeldes in work[wnum]
+         (B_DISABLED bzw. B_ENABLED, s. 2.10).
+
+   2.10.4 Funktion form_getans(wnum : byte) : byte
+         öbergibt den Status des Eingabefeldes in work[wnum].
+
+   2.11 Funktion _dactive : byte
+       Diese Funktion liefert die work[]-Nummer des aktiven Dialog-
+       elements bzw. D_NONE, wenn keine Dialogbox bearbeitet wird.
+       Hiermit kînnen die erweiterten Hilfsfunktionen kontext-sensitiv
+       programmiert werden.
+
+  --- Die folgenden Routinen der Dialogverwaltung waren bisher
+      separat in der Unit ASVOBJ zusammengefa·t -----------------
+
+   2.12 Funktion fileselect(title,path,exts,default : string) : string
+       In title kann der Titel der Fileselectbox Åbergeben werden (z.B.
+       'DATEI LADEN'), von dem max. 35 Zeichen angezeigt werden. path
+       bestimmt den Pfad, fÅr den das Inhaltsverzeichnis zunÑchst ange-
+       zeigt werden soll. Wird keine Laufwerksbezeichnung angegeben,
+       wird das aktuelle Laufwerk verwendet. Bei öbergabe eines Leer-
+       strings wird automatisch das aktuelle Laufwerk und Verzeichnis
+       gewÑhlt. exts gibt bis zu fÅnf durch Komma getrennte Extensions
+       an, fÅr die die entsprechenden Dateien gleichzeitig angezeigt
+       werden (z.B. '*.PAS,*.INC'). Ein Leerstring bedeutet hier die
+       allgemeingÅltige Dateimaske '*.*'. default schlie·lich gibt den
+       voreingestellten Dateinamen an. Zu den Mîglichkeiten der An-
+       wendung s. auch MENUDEMO.PAS. Analog zu form_alert() kann in
+       byteout[4] vor dem Aufruf der Funktion ein Wert Åbergeben
+       werden, mit dem die Fileselectbox in der erweiterten Hilfs-
+       funktion erkannt werden kann.
+
+       Als RÅckgabe erhÑlt man einen Leerstring, wenn "Abbruch" ange-
+       klickt oder kein File ausgewÑhlt wurde. Ansonsten liefert die
+       Funktion den Filenamen mit dem kompletten Pfad zurÅck. Es wird
+       allerdings nicht ÅberprÅft, ob diese Datei auch wirklich exi-
+       stiert, dies mu· mit fn exist() "von Hand" vorgenommen werden.
+
+       Fileselectboxen werden folgenderma·en bedient:
+       Im Eingabefeld "Dateiname" kann man den Namen der gewÅnschten
+       Datei direkt eingeben, wenn man diesen kennt, und braucht dann
+       nur noch <Return> zu drÅcken, da zu Anfang der Default-Button
+       der "OK"-Button ist. Ansonsten kann man sich mit den Slidern
+       durch die Dateiliste bewegen. Eine Datei wird durch doppeltes
+       Anklicken ausgewÑhlt, die Fileselectbox wird dann automatisch
+       verlassen. In andere Verzeichnisse gelangt man mit der zweiten
+       Liste, der evtl. vorhandene Eintrag ".." steht fÅr das Åberge-
+       ordnete Verzeichnis. Das aktuelle Verzeichnis wird oben in der
+       Box angezeigt.
+       Die Tastatursteuerung der Listen ist wie folgt implementiert:
+       Mit <Cursor runter> bzw. <Cursor rechts> kann man den markierten
+       Eintrag um eine Stelle nach unten bewegen, mit <Cursor hoch> und
+       <Cursor links> um eine Stelle nach oben. Mit <PgUp> und <PgDn>
+       kann die Liste um eine Seite nach oben bzw. unten verschoben
+       werden. Mit <Home> bzw. <End> gelangt man an den Anfang / an das
+       Ende der Liste. Der markierte Eintrag kann mit <Space> ausge-
+       wÑhlt werden. Zum AuswÑhlen einer Datei kann auch <Return>
+       verwendet werden, wenn der "OK"-Button der Default-Button ist.
+
+   2.13 Slider
+       WICHTIG: Die Routinen fÅr Slider kînnen in der vorliegenden Form
+       nichts au·er bei Anwahl die Werte in den jeweiligen work[]-
+       Feldern zu verÑndern und die Slider entsprechend auf dem Bild-
+       schirm darzustellen. D.h. man kann erst NACH dem VERLASSEN der
+       Dialogbox die neuen Daten auswerten. Um schon wÑhrend der
+       Dialogbearbeitung die Anzeige an die Sliderwerte anzupassen,
+       mu· man ein Dialogobjekt definieren, da· bei Anwahl die Slider-
+       routinen aufruft (s. form_objcall und MENUDEMO.PAS). Da· diese
+       Vorgehensweise gut funktioniert, sieht man an der
+       Fileselectbox.
+       Eine Tastatursteuerung ist nicht implementiert (was auch nicht
+       besonders sinnvoll wÑre), auch diese mu· von dem Åbergeordneten
+       Objekt Åbernommen werden.
+
+   -- Routinen fÅr horizontale Slider --
+
+   2.13.1 Funktion dhslider(x,y,brt : byte; wert,max : word) : string
+         Diese Funktion erstellt einen work[]-Eintrag. öbergeben
+         werden die relative X- und Y-Position zur linken oberen Ecke
+         der Dialogbox, die Breite des Sliders (insgesamt), der aktu-
+         elle Wert des Sliders und der z.Z. maximal mîgliche Wert.
+         Die Umrechnung wird von ASV Åbernommen, die Auflîsung von
+         1/65535 (word) dÅrfte auch fÅr grî·ere Datenmengen genÅgen.
+
+   2.13.2 Funktion _hslider : integer
+         Liefert die Objektnummer des horizontalen Sliders zurÅck.
+         Diese ist wichtig fÅr den Aufruf der Slider aus anderen
+         Objekten (s.o.).
+
+   -- Routinen fÅr vertikale Slider --
+
+   2.13.3 Funktion dvslider(x,y,hhe : byte; wert,max : word) : string
+         Erstellt einen work[]-Eintrag fÅr einen vertikalen Slider.
+         Die Parameter entsprechen denen der horizontalen Slider, nur
+         mu· hier natÅrlich die Hîhe des Sliders angegeben werden.
+
+   2.13.4 Funktion _vslider : integer
+         öbergibt die Objektnummer des vertikalen Sliders.
+
+   -- Allgemeine Sliderroutinen --
+
+   2.13.5 Prozedur form_setslider(wnum : byte; wert : word)
+         Setzt den Wert des Sliders in work[wnum].
+
+   2.13.6 Funktion form_getslider(wnum : byte) : word
+         Liefert den aktuellen Wert des Sliders in work[wnum].
+
+   2.13.7 Prozedur form_setslidermax(wnum : byte; max : word)
+         Bestimmt den Maximalwert des Sliders in work[wnum].
+
+   2.13.8 Funktion form_getslidermax(wnum : byte) : word
+         Åbergibt das aktuelle Maximum des Sliders in work[wnum].
+
+   2.13.9 Prozedur form_setslsdelay(dl : word)
+         Setzt die Verzîgerung (in Millisekunden), die beachtet wird,
+         wenn die Pfeile eines Sliders angeklickt werden. Dies ist
+         besonders bei Listen wichtig, damit der Anwender Åberhaupt
+         sieht, welche Daten er auswÑhlen kann (ASV ist sonst
+         nÑmlich zu schnell ...).
+
+   2.13.10 Funktion form_getslsdelay : word
+          Liefert die aktuelle Verzîgerung bei Einzelschritten.
+          Defaultwert ist 75.
+
+   2.13.11 Prozedur form_setslmdelay(dl : word)
+          Setzt die Verzîgerung, die eingehalten wird, wenn die
+          schraffierte FlÑche eines Sliders angeklickt wird.
+
+   2.13.12 Funktion form_getslmdelay : word
+          Liefert die mit form_setslmdelay() gesetzte Verzîgerung.
+          Defaultwert ist 150.
+
+   2.14 Funktion colours(title : string; attr : byte) : integer
+       Ruft die ASV-interne Farbeinstellbox auf. In title kann eine
+       öberschrift fÅr die Box angegeben werden (max. 28 Zeichen). In
+       attr wird der Default-Farbwert (Vorder- und Hintergrundfarbe)
+       Åbergeben. Ist die RÅckgabe grî·er gleich Null, ist dies der
+       vom Benutzer ausgewÑhlte Farbwert. Ansonsten wurde die Dialog-
+       box abgebrochen.
+
+  V Allgemeine Auskunftsfunktionen
+   8. Funktion exist(path : string) : boolean
+     Mit der Funktion exist() kann ÅberprÅft werden, ob die ange-
+     gebene Datei existiert. Wenn ja, erhÑlt man TRUE von der
+     Funktion zurÅck.
+
+       Beispiel:  writeln(exist('C:\TP\MENUDEMO.PAS'));
+
+   9. Funktion getvmemp(var p : pointer) : boolean
+     Diese Funktion Åbergibt in p einen Zeiger auf den internen
+     Bildschirmspeicher der Application Services. Ist die Funktion
+     true, kann man diesen Speicher, dessen LÑnge nach menu_inquire
+     in intout[5] steht, fÅr eigene Zwecke verwenden. Wird der
+     Speicher allerdings anderweitig benîtigt, ist p=NIL und die
+     Funktion false.
+
+   10. Funktion prn_stat(bits : byte) : boolean
+      Mit dieser Funktion kann man den Status des Druckers Åber-
+      prÅfen. Mîgliche Werte sind P_TIMEOUT (Zeitfehler), P_EXMIT
+      (öbertragungsfehler), P_ONLINE (Drucker ist angeschaltet)
+      und P_EPAPER (Papiermangel).
+
+        Beispiel:  if prn_stat(P_ONLINE) then
+                     writeln('Drucker ist angeschaltet.');
+
+   11. Funktion sgn(wert : longint) : shortint
+      Entspricht der Signum-Funktion, d.h. ist wert<0, wird -1 zurÅck-
+      geliefert. Bei wert>0 wird 1 zurÅckgeliefert, bei wert=0 ist die
+      RÅckgabe Null.
+
+ VI Sonstiges
+   1. Bildschirm
+     1.3 Prozedur clsp(att,zch : byte)
+        Diese Routine lîscht wie cls() den Bildschirm. Allerdings kann
+        in zch noch der ASCII-Wert eines Zeichens angegeben werden, mit
+        dem der Bildschirm gefÅllt wird. Vordefinierte Konstanten fÅr
+        zch sind C_SPACE (' '), C_WDOT ('∞'), C_MDOT ('±') und
+        C_CDOT ('≤').
+
+     1.4 Prozedur hide
+        Dieser Befehl bringt den Cursor in die Bildschirmecke unten
+        rechts (er wird dadurch unsichtbar). Vor einer erneuten Bild-
+        schirmausgabe mu· der Cursor wieder neu positioniert werden,
+        sonst kann es zu Stîrungen beim Bildaufbau kommen.
+
+     1.5 Prozedur hidecursor
+        Diese Routine schaltet den Cursor aus. Das geschieht mit Hilfe
+        einer undokumentierten Mîglichkeit der BIOS-Routine $10/$01,
+        daher ist die Funktion nicht mit allen Bildschirmcontrollern
+        gewÑhrleistet (und wird ASV-intern auch nicht verwendet)!
+
+     1.6 Prozedur showcursor
+        Schaltet den Cursor wieder ein.
+
+     1.7 Prozedur scrforce(anzx,anzy : byte; avcol : boolean)
+        Bei der Vielzahl der Grafikkarten kann es (leider) vorkommen,
+        da· die Application Services eine zu exotische Karte nicht
+        korrekt erkennen und dadurch Bildschirmbreite und -hîhe falsch
+        setzen. Mit diesem Befehl kann die Unit dazu gezwungen werden,
+        spezielle Werte fÅr Anzahl der Spalten und Zeilen anzunehmen.
+        Au·erdem kann die VerfÅgbarkeit einer Farbdarstellung bestimmt
+        werden. Dieser Befehl sollte (wenn Åberhaupt) so frÅh wie mîg-
+        lich in einem Programm verwendet werden, da die gesamte Ausgabe
+        der Unit davon beeinflu·t wird (zusÑtzlich werden beim Aufruf
+        die Farben neu gesetzt). ACHTUNG: Werden diesem Befehl falsche
+        Werte Åbergeben, kann es zu Programmstîrungen kommen!!!
+
+          Beispiel:  scrforce(162,51,true);
+
+     1.8 Prozedur asv_init
+        Mit dieser Routine kînnen die internen Werte der Application
+        Services neu ermittelt werden. Dies wird z.B. dann nîtig, wenn
+        ein Programm mit exec() gestartet wurde und nach der RÅckkehr
+        nicht sicher ist, ob sich der Computer noch im selben Zustand
+        wie vorher befindet. Innerhalb der Routine werden die Farben,
+        die Bildgrî·e etc. neu ermittelt. Au·erdem werden die Maus-
+        attribute initialisiert und der Mauscursor angezeigt.
+        Nach dem Aufruf von asv_init sollte der komplette Bildschirm
+        neu aufgebaut werden.
+        WICHTIG: Die MenÅstrukturen etc. bleiben erhalten!
+
+     1.9 Prozedur hardcopy
+        Diese Routine druckt den aktuellen (Text-)Bildschirm aus.
+        Vorher sollte mit fn prn_stat() ÅberprÅft werden, ob der
+        Drucker On-Line ist!
+
+     1.10 Prozedur printxy(x,y : byte; txt : string)
+         Diese Prozedur schreibt die Zeichenkette in txt DIREKT in den
+         Bildschirmspeicher an die Position (x≥y). Das geschieht sehr
+         schnell, da KEINE öBERPRöFUNG stattfindet! Die Cursorposition
+         wird nicht verÑndert. Zum Schreiben werden die aktuellen Text-
+         attribute in textattr verwendet.
+
+     1.11 Prozedur setattr(x,y,art,len : byte)
+         Diese Routine setzt die Attribute der Zeichen in (x..x+len≥y)
+         auf den Wert art. Es findet keine BereichsÅberprÅfung statt!
+
+   2. Tastatur
+     2.1 Prozedur kbset(bits : byte)
+        Mit dieser Routine kann eine der Umschalttasten SCRLLOCK,
+        CAPSLOCK und NUMLOCK softwaremÑ·ig angeschaltet werden.
+        Bei einem AT leuchten auch automatisch die entsprechenden
+        LÑmpchen an der Tastatur auf.
+
+          Beispiel:  kbset(CAPSLOCK);
+
+     2.2 Prozedur kbclr(bits : byte)
+        Diese Prozedur schaltet eine der Umschalttasten SCRLLOCK,
+        CAPSLOCK und NUMLOCK aus.
+
+   3. Zeichenketten
+     3.1 Funktion left(teil : string; anz : byte) : string
+        Von dieser Funktion werden von der Åbergebenen Zeichenkette
+        teil die anz linken Zeichen zurÅckgegeben.
+
+     3.2 Funktion right(teil : string; anz : byte) : string
+        Diese Funktion Åbergibt die anz rechten Zeichen der Zeichen-
+        kette teil.
+
+     3.3 Funktion space(anz : byte) : string
+        Diese Funktion liefert eine Zeichenkette mit anz Leerzeichen
+        zurÅck.
+
+     3.4 Funktion strg(teil: string; anz : byte) : string
+        Diese Funktion liefert eine Zeichenkette zurÅck, in der der
+        String teil anz Mal aneinandergehÑngt ist.
+
+     3.5 Prozedur cutl(var teil : string)
+        Schneidet das Zeichen links am String ab.
+
+          Beispiel:  text:='Hallo.';
+                     cutl(text);      { -> text='allo.'}
+
+     3.6 Prozedur cutr(var teil : string)
+        Schneidet das Zeichen rechts am String ab.
+
+     3.7 Prozedur trim(var teil : string)
+        Entfernt alle Leerzeichen links und rechts vom String.
+
+     3.8 Funktion trimf(teil : string) : string
+        Siehe 3.7.
+
+     3.9 Funktion upper(teil : string) : string
+        Wandelt die Åbergebene Zeichenkette in Gro·buchstaben um.
+        Umlaute werden korrekt behandelt!
+
+     3.10 Funktion lower(teil : string) : string
+         Wandelt die Zeichenkette teil in Kleinbuchstaben um.
+
+     3.11 Funktion itoa(zahl : longint) : string
+         Wandelt eine Integer-Zahl in eine Zeichenkette um.
+
+     3.12 Funktion atoi(zeichen : string) : longint
+         Wandelt eine Zeichenkette in eine Integer-Zahl um. Leerzeichen
+         am Anfang und am Ende des Strings werden abgeschnitten. Die
+         Zeichenkette wird soweit umgewandelt, wie sie gÅltige Zeichen
+         enthÑlt.
+
+     3.13 Funktion ftoa(zahl : real) : string
+         Wandelt eine Flie·kommazahl in eine Zeichenkette um.
+
+     3.14 Funktion atof(zeichen : string) : real
+         Wandelt eine Zeichenkette in eine Flie·kommazahl um. Leer-
+         zeichen am Anfang und am Ende des Strings werden abgeschnit-
+         ten. Die Zeichenkette wird soweit umgewandelt, wie sie gÅltige
+         Zeichen enthÑlt.
+
+           Beispiel:  atof(' 123q4.56  ')=123
+
+     3.15 Funktion sts(var strng : string; ch : char) : string;
+         Wandelt eine Zeichenkette, die aus durch ch getrennten Teilen
+         besteht, in die einzelnen Zeichenketten um. Die ursprÅngliche
+         Zeichenkette wird verkÅrzt, bis sie ganz leer ist.
+
+     3.16 Funktion stn(var strng : string; ch : char) : integer;
+         Diese Funktion wandelt eine Zeichenkette, die aus durch ch
+         getrennten Zahlen besteht, in die einzelnen Zahlen um. Dabei
+         wird die ursprÅngliche Zeichekette verkÅrzt, bis sie ganz
+         leer ist.
+
+           Beispiel:  dummy:=' #27#45 # 1  ';
+                      while length(dummy)>0 do writeln(stn(dummy,'#'));
+
+   4. Rechteckfunktionen
+     Diese Routinen werden meistens bei der Programmierung von PMT-Jobs
+     (s. Anhang F) benîtigt, wenn es darum geht, festzustellen, ob ein
+     Job direkt auf den Bildschirm schreiben darf etc. Die Routinen
+     basieren auf dem Typ JREC. Die Instanzen .xl und .yo geben die
+     linke obere Ecke des Bildschirmausschnitts an, .xr und .yu die
+     rechte untere Ecke. Auf .xl/.yo kann auch mit .pos zugegriffen
+     werden, auf .xr/.yu mit .size. Letztere Bezeichnung ist zwar etwas
+     irrefÅhrend, da nicht die Grî·e des Rechtecks, sondern die gegen-
+     Åberliegende Ecke beschrieben wird, aber so ist die Unterscheidung
+     eindeutig.
+
+     4.1 Funktion rc_equal(src,dst : JREC) : boolean
+        öberprÅft, ob die beiden Åbergebenen Rechtecke identisch sind.
+        Ist dies der Fall, ist die Funktion true, sonst false.
+
+     4.2 Funktion rc_inside(x,y : byte; r : JREC) : boolean
+        öberprÅft, ob sich der Punkt (x[1.._scrx]|y[1.._scry]) inner-
+        halb des in r Åbergebenen Rechtecks befindet. Ist dies der
+        Fall, ist die Funktion true, sonst false.
+
+     4.3 Funktion rc_intersect(src : JREC; var dst : JREC) : boolean
+        Testet, ob sich die beiden Rechtecke Åberschneiden. Ist dies
+        der Fall, ist rc_intersect true, sonst false. Der Inhalt von
+        dst ist nach dem Funktionsaufruf NICHT DEFINIERT!
+        Mit dieser Routine kann innerhalb eines PMT-Jobs getestet
+        werden, ob trotz eines aktiven MenÅs oder Dialogs auf dem
+        Bildschirm ausgegeben werden darf. Dazu wird in einem solchen
+        Fall von ASV die Variable JRECT (vom Typ JREC) mit den beleg-
+        ten Bildschirmbereichen beschrieben. Nun kann der vom Job be-
+        nîtigte Bildschirmausschnitt mit JRECT verglichen werden und
+        bei einer öberschneidung die Bildschirmausgabe unterdrÅckt
+        werden.
+
+     4.4 Prozedur rc_copy(src : JREC; var dst : JREC)
+        Eine recht mÑchtige neue Routine, denn sie kopiert den durch
+        src festgelegten Bildschirmausschnitt an die durch dst.pos
+        bestimmte Position. dst.size ist danach auf die Werte des
+        tatsÑchlich kopierten Bereichs gesetzt. rc_copy achtet selber
+        darauf, da· nicht au·erhalb des Bildschirms kopiert wird und
+        clippt evtl. den zu kopierenden Ausschnitt. Es ist (natÅrlich)
+        auch mîglich, da· sich die Zielkoordinaten innerhalb des zu
+        kopierenden Rechtecks befinden.
+
+
+VII Anhang
+A Definitionen
+
+ unit asv;
+ {$A+,B-,D-,E-,F+,I-,L-,N-,O+,R-,S-,V+}
+
+ interface
+
+   uses dos,crt;
+
+   const _magic     = 18011972;
+         _asv       = 1.5;      _wmax      = 99;     _dbutmax  = 19;
+         _bmax      = 29;       _imax      = 14;     _womax    = 4;
+         M_EXIT     = 255;      _jobmax    = 9;      _dobjmax  = 19;
+         M_OK       = 0;        M_HELP     = 254;
+         M_NOP      = -1;       H_PULL     = 0;      B_OFF     = 0;
+         M_CANCEL   = -2;       H_POP      = 1;      B_ON      = 1;
+         M_ERROR    = -10;      H_DIAL     = 2;      B_NXON    = 2;
+         E_NFOUND   = -11;      M_DIS      = 253;    B_NXOFF   = 3;
+         E_NREENT   = -12;      KEY_NONE   = 0;      B_DISABLED= 255;
+         E_NDRAW    = -13;      KEY_NORM   = 127;    B_ENABLED = 0;
+         E_MOUTSCR  = -14;      KEY_SPEC   = 27;
+         E_MUSED    = -15;      M_PULL     = 0;      D_NONE    = 0;
+         E_NINIT    = -16;      M_DROP     = 1;      D_CLOSE   = 1;
+         E_NBUT     = -17;      M_NMOVE    = 128;    D_MOVE    = 2;
+         E_DSTRUC   = -18;      X_BOTH     = 0;      D_GRAF    = 4;
+         E_DTBIG    = -19;      X_OK       = 1;      F_OK      = 0;
+         E_MSTRUC   = -20;      X_CANCEL   = 2;      F_ERROR   = -1;
+         RSHIFT     = 1;        LSHIFT     = 2;      F_NONE    = 255;
+         CTRL       = 4;        ALT        = 8;
+         SCRLLOCK   = 16;       NUMLOCK    = 32;     P_TIMEOUT = 1;
+         CAPSLOCK   = 64;       INS        = 128;    P_EXMIT   = 8;
+         L_USA      = 1;        PC         = 0;      P_ONLINE  = 16;
+         L_FRG      = 2;        XT         = 1;      P_EPAPER  = 32;
+         L_GB       = 8;        AT         = 3;      J_OK      = 0;
+         J_ENABLED  = 254;      J_DISABLED = 0;      J_ERROR   = -1;
+         S_DESK     = 1;        S_MENU     = 2;      S_DIALOG  = 4;
+         S_UNKNOWN  = 0;        S_ALL      = 0;
+         S_SMALL    = 0;        S_MID      = 1;      S_WIDE    = 2;
+         A_NCHECKED = 1;        C_SPACE    = 32;     S_LRIGHT  = 128;
+         A_ENABLED  = 3;        C_WDOT     = 176;
+         A_CHECKED  = 2;        C_MDOT     = 177;    P_OFFS   = 123;
+         A_DISABLED = 4;        C_CDOT     = 178;
+         B_FNONE    = 0;        B_FSINGLE  = 1;      B_FHALF  = 2;
+         B_FDOUBLE  = 3;        B_CLICK    = 0;      B_KNONE  = 0;
+         B_OFFS     = 200;      B_TOUCH    = 1;      B_MNONE  = 255;
+         B_ALL      = 255;      B_ERROR    = -1;     B_OK     = 0;
+         M_LEFT     = 1;        M_MID      = 4;      M_RIGHT  = 2;
+         K_F1       = 59;       K_F2       = 60;     K_INS    = 82;
+         K_F3       = 61;       K_F4       = 62;     K_DEL    = 83;
+         K_F5       = 63;       K_F6       = 64;     K_HOME   = 71;
+         K_F7       = 65;       K_F8       = 66;     K_END    = 79;
+         K_F9       = 67;       K_F10      = 68;     K_PGUP   = 73;
+         K_ESC      = 27;       K_TAB      = 9;      K_PGDN   = 81;
+         K_BS       = 8;        K_RET      = 13;     K_UP     = 72;
+         K_LF       = 10;       K_FF       = 12;     K_DOWN   = 80;
+                                K_LEFT     = 75;     K_RIGHT  = 77;
+
+   var work    : array [0.._wmax] of string[90];
+       intout  : array [0.._imax] of integer;
+       byteout : array [0.._bmax] of byte;
+       wordout : array [0.._womax] of word;
+       regs    : registers;
+       void    : types.void;
+       JRECT   : JREC;
+
+   asv_init;                                                  _Prozedur
+   asverror : integer;                                        .Funktion
+   atof(zeichen : string) : real;                             .Funktion
+   atoi(zeichen : string) : longint;                          .Funktion
+   attr(ink,pap : byte) : byte;                               .Funktion
+   cls(att : byte);                                           _Prozedur
+   clsp(att,zch : byte);                                      _Prozedur
+   color : boolean;                                           .Funktion
+   colours(title : string; attr : byte) : integer;            .Funktion
+   cutl(var teil : string);                                   _Prozedur
+   cutr(var teil : string);                                   _Prozedur
+   _dactive : byte;                                           .Funktion
+   dalpha(dx,dy,db,dmb,ds : byte;title,cont:string):string;   .Funktion
+
+   dbut_delete(num : byte) : integer;                         .Funktion
+   dbut_draw(was : byte);                                     _Prozedur
+   dbut_insert(x,y,frame,fcol,exit,menu,kshft,kcode : byte;
+               name : string) : integer;                      .Funktion
+   dbut_update(num,frm,fcol,menu,kshft,kcode:byte;nam:string);_Prozedur
+
+   defmouse(smask,cmask : word);                              _Prozedur
+   dframe(dx,dy,db,dh : byte; dt : string) : string;          .Funktion
+   dhslider(x,y,brt : byte; wert,max : word) : string;        .Funktion
+   dialog : integer;                                          .Funktion
+   dpush(dx,dy,ds : byte; title : string) : string;           .Funktion
+   dradio(dx,dy,dn,ds : byte; title : string) : string;       .Funktion
+   dtext(dx,dy : byte; dt : string) : string;                 .Funktion
+   dvslider(x,y,hhe : byte; wert,max : word) : string;        .Funktion
+   exist(path : string) : boolean;                            .Funktion
+   fileselect(title,path,exts,default : string) : string;     .Funktion
+
+   form_alert(title,msg,but : string; def : byte) : integer;  .Funktion
+   form_errexit(stat : byte);                                 _Prozedur
+   form_error(num : integer);                                 _Prozedur
+   form_extcol(sdia,hdia,sale,hale,spop,hpop,dpop : byte);    _Prozedur
+   form_findrb(von,bis,dn : byte) : byte;                     .Funktion
+   form_getan(wnum : byte) : string;                          .Funktion
+   form_getans(wnum : byte) : byte;                           .Funktion
+   form_getpb(wnum : byte) : byte;                            .Funktion
+   form_getrb(wnum : byte) : byte;                            .Funktion
+   form_getslider(wnum : byte) : word;                        .Funktion
+   form_getslidermax(wnum : byte) : word;                     .Funktion
+   form_getslmdelay : word;                                   .Funktion
+   form_getslsdelay : word;                                   .Funktion
+   form_objcall(objn,wnum,com,dat1,dat2 : byte);              _Prozedur
+   form_objdel(objn : byte) : integer;                        .Funktion
+   form_objins(nobj : types.obj) : integer;                   .Funktion
+   form_objreplace(objn : byte; nobj : types.obj) : integer;  .Funktion
+   form_setan(wnum : byte; cont : string);                    _Prozedur
+   form_setans(wnum,ds : byte);                               _Prozedur
+   form_setattr(bits : word);                                 _Prozedur
+   form_seterrl(cc : integer);                                _Prozedur
+   form_setpb(wnum,ds : byte);                                _Prozedur
+   form_setrb(wnum,ds : byte);                                _Prozedur
+   form_setslider(wnum : byte; wert : word);                  _Prozedur
+   form_setslidermax(wnum : byte; max : word);                _Prozedur
+   form_setslmdelay(dl : word);                               _Prozedur
+   form_setslsdelay(dl : word);                               _Prozedur
+
+   ftoa(zahl : real) : string;                                .Funktion
+   getmouse(var mx,my,mb : byte);                             _Prozedur
+   getvmemp(var p : pointer) : boolean;                       .Funktion
+   hardcopy;                                                  _Prozedur
+   hide;                                                      _Prozedur
+   hidecursor;                                                _Prozedur
+   hidemouse;                                                 _Prozedur
+   _hslider : integer;                                        .Funktion
+   itoa(zahl : longint) : string;                             .Funktion
+
+   job_add(proc : jobtype; sec : word; cstat:byte):integer;   .Funktion
+   job_disable;                                               _Prozedur
+   job_enable;                                                _Prozedur
+   job_getcall(num : byte) : integer;                         .Funktion
+   job_getstat(num : byte) : integer;                         .Funktion
+   job_gettime(num : byte) : integer;                         .Funktion
+   job_kill(num : byte) : integer;                            .Funktion
+   job_setcall(num,cstat : byte);                             _Prozedur
+   job_setstat(num,stat : byte);                              _Prozedur
+   job_settime(num : byte; sec : word);                       _Prozedur
+
+   kbclr(bits : byte);                                        _Prozedur
+   kbshift(bits : byte) : boolean;                            .Funktion
+   kbset(bits : byte);                                        _Prozedur
+   left(teil : string; anz : byte) : string;                  .Funktion
+   lower(teil : string) : string;                             .Funktion
+
+   menu_add(wrk : string);                                    _Prozedur
+   menu_attr(num,attrs : byte);                               _Prozedur
+   menu_delete(num : byte);                                   _Prozedur
+   menu_draw;                                                 _Prozedur
+   menu_event(stat : byte);                                   _Prozedur
+   menu_init;                                                 _Prozedur
+   menu_inquire;                                              _Prozedur
+   menu_kill;                                                 _Prozedur
+   menu_pop(wo : byte) : integer;                             .Funktion
+   menu_rename(num : byte; wrk : string);                     _Prozedur
+   menu_resetc;                                               _Prozedur
+   menu_resetp;                                               _Prozedur
+   menu_setc(was,saw,has,haw,dis,shdw : byte);                _Prozedur
+   menu_setp(procv : types.procvar);                          _Prozedur
+   menu_sets(stat : byte);                                    _Prozedur
+   menu_setschr(ccode : byte);                                _Prozedur
+   menu_stat(num : byte) : byte;                              .Funktion
+   menu_text(num : byte) : string;                            .Funktion
+   menu_watch : integer;                                      .Funktion
+
+   mouse : boolean;                                           .Funktion
+   mouse_resets;                                              _Prozedur
+   mouse_resett;                                              _Prozedur
+   mouse_sets(sx,sy : integer);                               _Prozedur
+   mouse_sett(dst : integer);                                 _Prozedur
+   mouseb : byte;                                             .Funktion
+   mousex : byte;                                             .Funktion
+   mousey : byte;                                             .Funktion
+
+   mvisible : boolean;                                        .Funktion
+   printxy(x,y : byte; txt : string);                         _Prozedur
+   prn_stat(bits : byte) : boolean;                           .Funktion
+
+   rc_copy(src : JREC; var dst : JREC);                       _Prozedur
+   rc_equal(src,dst : JREC) : boolean;                        .Funktion
+   rc_inside(x,y : byte; r : JREC) : boolean;                 .Funktion
+   rc_intersect(src : JREC; var dst : JREC) : boolean;        .Funktion
+
+   right(teil : string; anz : byte) : string;                 .Funktion
+   scrforce(anzx,anzy : byte; avcol : boolean);               _Prozedur
+   _scrx : byte;                                              .Funktion
+   _scry : byte;                                              .Funktion
+   setattr(tx,ty,art,len : byte);                             _Prozedur
+   setmouse(mx,my : byte);                                    _Prozedur
+   sgn(wert : longint) : shortint;                            .Funktion
+   showcursor;                                                _Prozedur
+   showmouse;                                                 _Prozedur
+   space(anz : byte) : string;                                .Funktion
+   stn(var strng : string; ch : char) : integer;              .Funktion
+   strg(teil : string; anz : byte) : string;                  .Funktion
+   trim(var teil : string);                                   _Prozedur
+   trimf(teil : string) : string;                             .Funktion
+   upper(teil : string) : string;                             .Funktion
+   _vslider : integer;                                        .Funktion
+
+
+D Programmierung eigener Dialogobjekte
+
+ Eigene Dialogobjekte (Listen etc.) bestehen aus Pascal-Prozeduren,
+ die sich an ein bestimmtes Dialog-Protokoll halten, um mit dem
+ Scheduler (Programmteil, der Events - Mausklicks oder Tastaturein-
+ gaben - registriert und an die jeweiligen Objekte weiterleitet)
+ der Funktion dialog kommunizieren zu kînnen. Die Prozeduren mÅssen
+ Far-compiliert sein und sind vom folgenden Typ:
+
+     type objtype = procedure(wnum,com,dat1,dat2 : byte);
+
+ WICHTIG: HÑlt sich ein Programmierer nicht an das vorgeschriebene
+          Protokoll, ist er fÅr alle Funktionsstîrungen der Application
+          Services bzw. AbstÅrze des Systems selbst verantwortlich, da
+          vom Scheduler aus GeschwindigkeitsgrÅnden nicht so viele
+          BereichsÅberprÅfungen wie von den Åbrigen Routinen vorge-
+          nommen werden!
+
+ 1. Funktionen der Application Services
+   1.1 Funktion form_objins(nobj: objtype) : integer
+      Meldet ein neues Dialogobjekt an. Als RÅckgabe erhÑlt man die
+      Nummer des Objekts oder F_ERROR, wenn kein Objektspeicher mehr
+      frei ist.
+
+        Beispiel:  ...
+                   {$F+}
+                   procedure liste(wnum,com,dat1,dat2 : byte);
+                     begin ... end;  {$F-}
+                   ...
+                   nummer:=form_objins(liste);
+                   ...
+
+   1.2 Funktion form_objreplace(objn : byte; nobj : objtype) : integer
+      Ersetzt ein Objekt mit einer neuen Routine. In objn wird die
+      Nummer des zu ersetzenden Objekts angegeben, in nobj die neue
+      Objektroutine. Als RÅckgabe erhÑlt man die Objektnummer bzw.
+      F_ERROR, wenn objn grî·er als _dobjmax ist.
+
+   1.3 Funktion form_objdel(objn : byte) : integer
+      Lîscht die Objektroutine mit der Nummer objn. Die RÅckgabe ist
+      F_OK bzw. F_ERROR, wenn objn grî·er als _dobjmax ist oder ver-
+      sucht wurde, eins der internen Objekte zu lîschen (das geht
+      aus SicherheitsgrÅnden nicht, da sich jedes Programm auf die
+      Anwesenheit der drei Standardroutinen verlassen kann).
+
+   1.4 Prozedur form_objcall(objn,wnum,com,dat1,dat2 : byte)
+      Ruft das Dialogobjekt mit der Objektnummer objn auf. Die
+      aufrufende Routine ist fÅr die Einhaltung des Protokolls
+      selbst verantwortlich. Mit dieser Routine kann eine Art
+      "Vererbung" von Objekten realisiert werden.
+
+ 2. Aufbau der Prozedur
+   In wnum erhÑlt die Prozedur die Nummer des gerade aktiven work[]-
+   Eintrags, der folgenderma·en aussieht:
+
+     work[x]:=#255+chr(objekt_nummer)[+...];
+
+   Die ersten beiden Zeichen sind zwingend notwendig, damit der
+   Scheduler ein Dialogelement eindeutig einem Objekt zuordnen kann.
+   Der Rest kann (und sollte) vom Programmierer vorgeschrieben werden,
+   dies sind die Werte, die von der Objektroutine zum Arbeiten be-
+   nîtigt werden. Besser ist es allerdings, wenn Routinen zum Erzeugen,
+   Setzen und Lesen der EintrÑge angeboten werden (s. III, 2.8-2.10).
+   Einzige EinschrÑnkung ist die maximale LÑnge von 90 Zeichen pro
+   work[]-Eintrag!
+
+   In com wird der Routine eine Funktionsnummer Åbergeben (s. 3.),
+   abhÑngig davon stehen in dat1 und dat2 unterschiedliche Daten.
+
+   Innerhalb der Objektroutine mÅssen alle verÑnderten Werte (Text-
+   attribute, Cursorposition) wieder restauriert werden. Man kann bei
+   den Funktionsnummern 0,2,3,7,10 und 11 davon ausgehen, da· die Maus
+   ausgeschaltet ist. Diese sollte ansonsten nicht verÑndert werden.
+
+ 3. Das Dialog-Protokoll
+   Hier sind die Funktionsnummern in com beschrieben. Die Nummern
+   1,2,3,5,10 und 11 MöSSEN von der Objektroutine unterstÅtzt werden,
+   selbst wenn sie nur ihre Anwesenheit bestÑtigen (s.u.).
+
+    #0: "Zeichnen des Dialogelements"
+        Die Routine mu· die nîtigen Daten aus dem work[]-Eintrag
+        ermitteln. Die Zeichenattribute mÅssen selbst gesetzt werden.
+
+    #1: "Rechteck fÅr Maus-Aktivierung Åbergeben"
+        In byteout[0..3] (Xmin,Ymin,Xmax,Ymax) wird ein Rechteck Åber-
+        geben (relativ zur linken oberen Ecke der Dialogbox). Wird in
+        dieses Rechteck geklickt, wird ein Mausevent erzeugt. Werden
+        Mausevents nicht benîtigt, sollten alle Werte Null sein.
+        ZusÑtzlich mu· in byteout[4] angegeben werden, ob erweiterte
+        Tastaturevents erwÅnscht sind (1) oder nicht (0). 1 bedeutet,
+        da· alle Zeichen direkt an die Objektroutine weitergeleitet
+        werden. Andernfalls wird zunÑchst ÅberprÅft, ob eine Hotkey-
+        Anwahl vorliegt. Nur wenn dies nicht der Fall ist, wird das
+        Zeichen weitergeleitet. Ein Mausevent, <Alternate>, [<Shift>+]
+        <Tab>, <Return> und <Esc> deaktivieren ein Dialogelement, das
+        erweiterte Tastaturevents verwendet.
+        Nur die wenigsten Objekte (z.B. Eingabefelder) benîtigen die
+        erweiterten Tastaturevents. Normale Tastaturevents reichen
+        meistens aus!
+
+    #2: "Aktivierung durch Maus/Hotkey"
+        Wenn die Aktivierung durch die Maus erfolgt ist, steht in
+        dat1 (X) und dat2 (Y) die absolute Position des Mauscursors
+        (ansonsten sind beide 0). In byteout[0] (Min.) und byteout[1]
+        (Max.) steht der Bereich, in dem im work[]-Feld Dialogelemente
+        eingetragen sind.
+
+    #3: "Aktivierung durch <Tab>"
+        Diese Funktion ist von #2 getrennt, da eine Anwahl mit <Tab>
+        nicht unbedingt eine StatusÑnderung zur Folge hat. In
+        byteout[4] steht, ob die Anwahl mit <Tab> (0) oder mit <Shift>
+        +<Tab> (1) erfolgt ist.
+
+    #5: "Hotkey-Anwahl ?"
+        Die Routine mu· ÅberprÅfen, ob das Zeichen in dat2 dem Hotkey
+        entspricht. Ist dies der Fall, mu· byteout[0] auf 1 gesetzt
+        werden, ansonsten auf 0. dat1 ist konstant KEY_NORM.
+        Bei byteout[0]=1 findet unmittelbar darauf eine Aktivierung
+        des Dialogelementes durch com=2 statt.
+
+    #7: "Deaktivieren"
+        Durch diese Funktion kann z.B. der Button restauriert werden.
+
+   #10: "Tastaturevent"
+        In dat1 wird gemeldet, ob es sich um eine normale Taste
+        (KEY_NORM) oder um eine Sondertaste (KEY_SPEC) handelt.
+        In dat2 steht der Zeichencode.
+
+   #11: "Mausevent"
+        Ein Mausklick mit der linken Maustaste hat stattgefunden.
+        In dat1 (X) und dat2 (Y) wird die aktuelle (absolute) Maus-
+        position Åbergeben.
+
+   #99: "Initialisierung"
+        Diese Funktion wird noch vor dem Zeichnen aufgerufen und dient
+        dazu, z.B. alle entsprechenden work[]-EintrÑge auf ihre
+        Korrektheit hin zu ÅberprÅfen und ggf. zu korrigieren.
+        Dazu wird in dat1 (Min.) und dat2 (Max.) das Intervall Åber-
+        geben, in dem Dialogelemente im work[]-Feld stehen.
+        Der Wert von wnum ist NICHT DEFINIERT, d.h. in diesem Fall
+        kann man wnum nicht als Index fÅr work[] verwenden!
+        Vor dem Zeichnen der Dialogbox werden alle angemeldeten
+        Dialogobjekte genau 1 Mal mit der Funktionsnummer 99 aufge-
+        rufen, egal ob das jeweilige Objekt in der Dialogbox ver-
+        wendet wird oder nicht.
+
+   Mit Ausnahme von Funktion 99 steht beim Aufruf der Prozedur in
+   byteout[2] die X-Position und in byteout[3] die Y-Position der
+   Dialogbox. Die Funktionen 2,3,10 & 11 mÅssen beim Verlassen der
+   Routine in byteout[3] angeben, ob ein anderes Dialogelement akti-
+   viert werden soll (0=nein; 255=letzen Button der Dialogbox akti-
+   vieren; 254=Dialogbox mit dem Wert in intout[0] verlassen; anderer
+   Wert: Dialogelement in work[Wert] aktivieren). Wird ein Wert un-
+   gleich 0 bzw. 254 Åbergeben, wird das neue Element mit com=3
+   aktiviert. Dazu kann in byteout[4] die Richtung des Aktivierens
+   (s. #3) bestimmt werden (0=vorwÑrts, 1=rÅckwÑrts).
+
+
+E Programmierung von Desktop-Buttons
+
+ Desktop-Buttons sind Aktionsbereiche auf dem Bildschirm, die maximal
+ 25 Zeichen breit und eine Zeile hoch sein kînnen. Diese Buttons kînnen
+ mit der Maus (und z.Z. NUR mit der Maus) angewÑhlt werden, worauf ASV
+ eine Nachricht an das Programm verschickt.
+
+ 1. Grundlagen
+   Die Buttons werden von menu_watch (s. II, 1.2.3) ausgewertet, so
+   da· sie nur bei inaktiven MenÅs und Dialogen angewÑhlt werden
+   kînnen. Nur dann sollten sie auch mit dbut_draw() bzw. dbut_update()
+   gezeichnet werden, allerdings kann ein Versto· gegen diese Regel
+   nîtig werden (z.B. bei der untersten Bildschirmzeile, s. MENUDEMO).
+   Das sollte aber nur dann geschehen, wenn man sicher ist, da· das
+   Zeichnen den Bildschirmaufbau nicht stîrt.
+
+ 2. Routinen der Application Services
+   2.1 Funktion dbut_insert(x,y,frame,fcol,exit,menu,kshft,kcode:byte;
+                            name : string) : integer
+      Initialisiert einen Desktop-Button. x und y geben die Position
+      des Textes name an (Achtung: wird ein Rahmen um den Button ge-
+      zeichnet, mu· die Position so gesetzt werden, da· auch der
+      Rahmen komplett sichtbar ist, sonst wird B_ERROR zurÅckgegeben).
+      frame gibt an, ob kein Rahmen (B_FNONE), ein einfacher
+      (B_FSINGLE), ein Rahmen, der oben doppelt und an den Seiten
+      einfach (B_FHALF) oder ganz doppelt ist (B_FDOUBLE). Mit fcol
+      kann die Farbe des Rahmens angegeben werden. exit legt fest, ob
+      der Button bereits beim BerÅhren aktiv wird (B_TOUCH) oder erst
+      beim Anklicken (B_CLICK). Mit menu kann festgelegt werden, ob
+      ein Button mit einem MenÅeintrag verknÅpft wird. Soll dies
+      geschehen, wird die Nummer des work[]-Eintrags Åbergeben, sonst
+      B_MNONE. Mit kshft und kcode kann ein Button zusÑtzlich mit einer
+      Taste verbunden werden. Dazu wird in kshft der Status (KEY_NORM,
+      KEY_SPEC) und in kcode der Tastencode Åbergeben, ansonsten
+      sollten beide B_KNONE (oder 0) sein. name schlie·lich enthÑlt
+      den Formatstring, mit dem der Buttontext incl. Attribute be-
+      schrieben wird. Gestartet wird mit normaler Schrift. Soll eine
+      neue Farbe gewÑhlt werden, wird vor dem Zeichen '#'+chr(Farbcode)
+      eingefÅgt. Mit '#'#0 wird auf normale Schrift zurÅckgeschaltet.
+      Ein kleines Beispiel:
+
+        'Fo#'+chr(10)+'rma#'+chr(200)+'ts#'#0'tring'
+
+      Der Button-Text (ohne Attribute) kann max. 25 Zeichen lang sein.
+      Trat bei der Initialisierung ein Fehler auf oder ist kein Desk-
+      top-Button mehr verfÅgbar, wird B_ERROR zurÅckgeliefert. An-
+      sonsten erhÑlt man die Nummer des Buttons, mit der der Button
+      erkannt und bearbeitet werden kann.
+
+   2.2 Funktion dbut_delete(num : byte) : integer
+      Lîscht den Desktop-Button mit der Nummer num aus der ASV-Liste.
+      Der Button wird NICHT vom Bildschirm gelîscht!
+
+   2.3 Prozedur dbut_draw(was : byte)
+      Zeichnet den Desktop-Button num. Sollen alle Buttons gezeichnet
+      werden, wird B_ALL Åbergeben (wie es auch menu_draw macht).
+
+   2.4 Prozedur dbut_update(num,frame,fcol,menu,kshft,kcode : byte;
+                            name : string)
+      Weist einem bereits bestehenden Desktop-Button neue Werte zu.
+      num enthÑlt die Nummer des Buttons, die anderen Werte entsprechen
+      denen von dbut_insert(). Hatte der Button bisher einen Rahmen,
+      hat B_FNONE bei frame keine Wirkung (dieser Wert kann deshalb
+      auch Åbergeben werden, wenn der Rahmen nicht geÑndert werden
+      soll). WICHTIG: Die LÑnge von name (ohne Attribute) mu· mit der
+      bisherigen TextlÑnge Åbereinstimmen, sonst findet keine énderung
+      statt. Abschlie·end wird der Button automatisch gezeichnet.
+
+
+F Programmierung von PMT-Jobs
+ PMT-Jobs (Pseudo-Multitasking-Prozeduren) sind zeitgesteuerte Ereig-
+ nisse, die zusÑtzlich zum Hauptprogramm abgearbeitet werden (wobei das
+ Hauptprogramm allerdings immer noch die hîchste PrioritÑt besitzt).
+ Die Jobs bestehen aus einer Far-compilierten Pascal-Prozedur vom
+ folgenden Typ:
+
+     type jobtype = procedure(job,stat : byte);
+
+ 1. Routinen der Application Services
+   1.1 Funktion job_add(proc : jobtype; sec:word; cstat:byte) : integer
+      Meldet einen neuen PMT-Job an, dessen Prozedurname in proc Åber-
+      geben wird. Mit sec wird festgelegt, nach wieviel hundertstel
+      Sekunden der Job jeweils aufgerufen wird. Da das Hauptprogramm
+      hîchste PrioritÑt besitzt, ist die Auflîsung des Schedulers nicht
+      wirklich 1/100s, auf einem 286er liegt sie bei ca. 1/25-1/50s.
+      WICHTIG: Wenn ein Programm weder menu_watch noch menu_event()
+      aufruft, wird die AusfÅhrung der Jobs ganz blockiert (ganz wie
+      das GEM/1-Pseudo-Multitasking...). Soll ein Job so oft wie
+      mîglich aufgerufen werden, mu· fÅr sec 0 Åbergeben werden.
+      In cstat wird angegeben, von wo aus der Job aufgerufen werden
+      darf. S_DESK bezeichnet den Desktop, wenn kein MenÅ oder Dialog
+      aktiv ist, S_MENU ein Pulldown- bzw. Popup-MenÅ und S_DIALOG eine
+      Dialogbox. Soll der Job immer aufgerufen werden, wird S_ALL Åber-
+      geben. Tritt bei der Initialisierung ein Fehler auf, wird J_ERROR
+      zurÅckgegeben, sonst die Nummer des Jobs.
+
+        Beispiel:  ...
+                   {$F+}
+                   procedure xyz(job,stat : byte);
+                     begin ... end;  {$F-}
+                   ...
+                   nummer:=dbut_insert(xyz,100,S_DESK+S_MENU);
+                   ...
+
+   1.2 Funktion job_kill(num : byte) : integer
+      Lîscht den Job mit der Nummer num aus der PMT-Scheduler-Liste.
+
+   1.3 Prozedur job_setstat(num,stat : byte)
+      Setzt beim Job num den Status. J_ENABLED bedeutet, da· der Job
+      ausgefÅhrt wird, J_DISABLED sperrt den Job.
+
+   1.4 Funktion job_getstat(num : byte) : integer
+      Gibt den Status eines Jobs zurÅck (J_ENABLED bzw. J_DISABLED).
+
+   1.5 Prozedur job_settime(num : byte; sec : word)
+      Setzt bei einem Job die Zeit, nach der dieser Job aufgerufen
+      wird.
+
+   1.6 Funktion job_gettime(num : byte)
+      Liefert die Zeit, nach der der Job num aufgerufen wird, zurÅck.
+
+   1.7 Prozedur job_setcall(num,cstat : byte)
+      Setzt das Flag fÅr die Aufrufebene eines Job (S_DESK, S_MENU,
+      S_DIALOG und S_ALL, s.o.).
+
+        Beispiel:  job_setcall(nummer,S_MENU+S_DIALOG);
+
+   1.8 Funktion job_getcall(num : byte) : integer
+      Liefert die Aufrufebene eines Jobs zurÅck.
+
+   1.9 Prozedur job_disable
+      Schaltet alle aktiven Jobs aus.
+
+   1.10 Prozedur job_enable
+       Schaltet die Jobs, die beim Aufruf von job_disable aktiv
+       waren, wieder an.
+
+ 2. Aufbau eines PMT-Jobs
+   Ein PMT-Job besteht aus einer Prozedur wie in 1.1 beschrieben.
+   Wird ein Job von den Application Services aus den Routinen
+   menu_watch, menu_pop, form_alert oder dialog aufgerufen, kann man
+   davon ausgehen, da· die Maus (falls vorhanden) sichtbar ist. Ruft
+   man die Jobs mit menu_event() auf, mu· man darauf selber achten.
+   Einem Job werden beim Aufruf zwei Werte Åbergeben. In job wird die
+   Nummer des aktiven Jobs Åbergeben, so da· mit einer Prozedur evtl.
+   mehrere Jobs abgearbeitet werden kînnen. In stat wird die Aufruf-
+   ebene des Jobs Åbergeben (z.B. S_DESK). Wird ein Job mit dem
+   Status S_MENU oder S_DIALOG aufgerufen, ist der Bildschirm teil-
+   weise belegt, so da· der Job nicht wahllos in den Bildschirm-
+   speicher schreiben kann. Deshalb ist in einem solchen Fall die
+   Variable JRECT vom Typ JREC mit den Koordinaten des belegten Aus-
+   schnitts beschrieben, so da· mittels rc_intersect() ÅberprÅft werden
+   kann, ob auf dem Bildschirm ausgegeben werden darf (s. MENUDEMO).
+   Ist stat gleich S_DESK, ist JRECT ausgenullt. WICHTIG: Egal, welcher
+   Status Åbergeben wird, die MenÅzeile (d.h. Bildschirmzeile 1) ist
+   immer belegt und wird nicht besonders markiert. Jobs, die in die
+   MenÅzeile schreiben (wie z.B. die Uhr in MENUDEMO) mÅssen also
+   darauf achten, da· sie nicht die MenÅtitel stîren.
+
+ 3. Funktionsweise des PMT-Schedulers
+   Der PMT-Scheduler ist fÅr den Aufruf der Jobs zustÑndig. Dazu wird
+   fÅr jeden Job die Zeit des letzten Aufrufs gespeichert. Bei jedem
+   Aufruf des Schedulers wird nun fÅr jeden nicht gesperrten Job Åber-
+   prÅft, ob die Differenz der aktuellen Zeit mit der Zeit des letzten
+   Aufrufs grî·er gleich der Aufruf-Zeit des Jobs ist. Ist dies der
+   Fall, ist der Job abgelaufen und mu· bei nÑchster Gelegenheit aus-
+   gefÅhrt werden. Von allen abgelaufenen Jobs wird nun der aufgerufen,
+   dessen letzter Aufruf am weitesten zurÅckliegt. Dadurch kînnen
+   zeitlich bedingte Deadlocks ausgeschlossen werden.
+   WICHTIG: Der PMT-Scheduler speichert und restauriert KEINE System-
+   parameter, da alle Jobs innerhalb eines Programms arbeiten und
+   die SystemÅberwachung zu viel Zeit benîtigen wÅrde. Ein Program-
+   mierer mÅ·te selbst am besten wissen, welche Parameter von einem
+   Job gesichert werden mÅssen und welche nicht.
+
+ Copyright (c)1990/91 by Softdesign 
