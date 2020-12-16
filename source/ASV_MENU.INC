@@ -1,4 +1,4 @@
-{ ASV 1.3 MENU vom 20.04.1991 }
+{ ASV 1.4 MENU vom 13.06.1991 }
 
 procedure form_seterrl(cc : integer);
 
@@ -10,7 +10,7 @@ procedure form_seterrl(cc : integer);
 procedure form_setattr(bits : word);
 
   begin
-    dbits:=(bits and 3);
+    dbits:=(bits and 7);
   end;
 
 
@@ -836,6 +836,7 @@ function menu_pop(wo : byte) : integer;
         hidemouse;
         get_vioram(xp,yp,brt,hhe,cflag);
         textattr:=saw_pop;
+        if (dbits and D_GRAF)>0 then graf_growbox(xp,yp,brt,hhe);
         printxy(xp,yp,'Ú'+strg('Ä',brt-2)+'¿');
         spstr:='³'+space(brt-2)+'³';
         dflag:=0;

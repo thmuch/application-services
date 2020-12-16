@@ -1,4 +1,4 @@
-{ ASV 1.3 ENDP vom 20.04.1991 }
+{ ASV 1.4 ENDP vom 13.06.1991 }
 
 function _scrx : byte;
 
@@ -107,4 +107,54 @@ procedure asvexit;
         intr($33,regs);
       end;
     setintvec($23,oldbreak);
+  end;
+
+
+procedure asv_init;
+  var adapfound : boolean;
+
+  begin
+    adapfound:=false;
+    regs.ax:=$1a00;
+    intr($10,regs);
+    if regs.al=$1a then adapfound:=true
+    else
+      begin
+        regs.ah:=$12;
+        regs.bl:=$10;
+        intr($10,regs);
+        if regs.bl<>$10 then adapfound:=true;
+      end;
+    regs.ah:=15;
+    intr($10,regs);
+    if regs.al=7 then vioseg:=$b000 else vioseg:=$b800;
+    farbe:=not((regs.al=0) or (regs.al=2) or (regs.al=7));
+    anzcol:=regs.ah;
+    loff:=anzcol shl 1;
+    if not(adapfound) then anzline:=25
+      else anzline:=byteptr(ptr($40,$84))^+1;
+    regs.ah:=5;
+    regs.al:=0;
+    intr($10,regs);
+    mausda:=false;
+    manzbut:=0;
+    regs.ax:=0;
+    regs.bx:=0;
+    intr($33,regs);
+    if regs.ax=$ffff then
+      begin
+        mausda:=true;
+        manzbut:=regs.bx;
+        regs.ax:=29;
+        regs.bx:=0;
+        intr($33,regs);
+      end;
+    mausvis:=false;
+    asvierror:=0;
+    menu_resetc;
+    showmouse;
+    defmouse($ffff,$7700);
+    mouse_resets;
+    mouse_resett;
+    menu_inquire;
   end;

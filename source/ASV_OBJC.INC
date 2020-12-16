@@ -1,50 +1,407 @@
-{***********************************
- * ASV Objects 1.0 by Thomas Much  *
- * Copyright (c)1991 by Softdesign *
- ***********************************
- * entwickelt am:     16.02.1991   *
- * letztes Update am: 02.06.1991   *
- ***********************************}
+{ ASV 1.4 OBJC vom 13.06.1991 }
 
-unit asvobj;
-{$A+,B-,D-,E-,F+,I-,L-,N-,O+,R-,S-,V+}
+procedure form_setslsdelay(dl : word);
 
-interface
-
-  uses asv,dos,crt;
-
-  procedure form_setslsdelay(dl : word);
-  function form_getslsdelay : word;
-  procedure form_setslmdelay(dl : word);
-  function form_getslmdelay : word;
-  procedure obj_setcolor(ws,hs,sw,hw : byte);
-  function form_getslidermax(wnum : byte) : word;
-  procedure form_setslider(wnum : byte; wert : word);
-  function form_getslider(wnum : byte) : word;
-  procedure form_setslidermax(wnum : byte; max : word);
-  function dhslider(x,y,brt : byte; wert,max : word) : string;
-  function dvslider(x,y,hhe : byte; wert,max : word) : string;
-  function _hslider : integer;
-  function _vslider : integer;
-  function stn(var strng : string; ch : char) : integer;
-  function fileselect(title,path,exts,default : string) : string;
+  begin
+    sldelay:=dl;
+  end;
 
 
-implementation
+function form_getslsdelay : word;
 
-  const fmax = 511;
-
-  var was,has,saw,haw,fox,foy : byte;
-      dalphanum,oxp,oyp,q     : byte;
-      oanz,fanf,fanz,exanz    : integer;
-      hslnum,vslnum,lnum      : integer;
-      files                   : array [0..fmax] of string[12];
-      pfad,dummy              : string;
-      extension               : array [0..4] of string[12];
-      sldelay,slmdelay        : word;
+  begin
+    form_getslsdelay:=sldelay;
+  end;
 
 
-  {$I c:\pascal\units\asv_inc\asv_oinc.inc}
+procedure form_setslmdelay(dl : word);
+
+  begin
+    slmdelay:=dl;
+  end;
+
+
+function form_getslmdelay : word;
+
+  begin
+    form_getslmdelay:=slmdelay;
+  end;
+
+
+function form_getslidermax(wnum : byte) : word;
+
+  begin
+    if wnum<=_wmax then
+      if (work[wnum,1]=#255) and ((work[wnum,2]=chr(hslnum)) or (work[wnum,2]=chr(vslnum)))
+        and (length(work[wnum])>8) then form_getslidermax:=ord(work[wnum,8])*256+ord(work[wnum,9])
+      else form_getslidermax:=0;
+  end;
+
+
+procedure form_setslider(wnum : byte; wert : word);
+  var max : word;
+
+  begin
+    if wnum<=_wmax then
+      if (work[wnum,1]=#255) and ((work[wnum,2]=chr(hslnum)) or (work[wnum,2]=chr(vslnum))) and (length(work[wnum])>8) then
+        begin
+          max:=form_getslidermax(wnum);
+          if wert>max then wert:=max;
+          work[wnum,6]:=chr(hi(wert));
+          work[wnum,7]:=chr(lo(wert));
+        end;
+  end;
+
+
+function form_getslider(wnum : byte) : word;
+
+  begin
+    if wnum<=_wmax then
+      if (work[wnum,1]=#255) and ((work[wnum,2]=chr(hslnum)) or (work[wnum,2]=chr(vslnum)))
+        and (length(work[wnum])>8) then form_getslider:=ord(work[wnum,6])*256+ord(work[wnum,7])
+      else form_getslider:=0;
+  end;
+
+
+procedure form_setslidermax(wnum : byte; max : word);
+
+  begin
+    if wnum<=_wmax then
+      if (work[wnum,1]=#255) and ((work[wnum,2]=chr(hslnum)) or (work[wnum,2]=chr(vslnum))) and (length(work[wnum])>8) then
+        begin
+          work[wnum,8]:=chr(hi(max));
+          work[wnum,9]:=chr(lo(max));
+          if form_getslider(wnum)>max then form_setslider(wnum,max);
+        end;
+  end;
+
+
+function dhslider(x,y,brt : byte; wert,max : word) : string;
+
+  begin
+    if brt<2 then brt:=2;
+    if wert>max then wert:=max;
+    dhslider:=#255+chr(hslnum)+chr(x)+chr(y)+chr(brt)+chr(hi(wert))+chr(lo(wert))+chr(hi(max))+chr(lo(max));
+  end;
+
+
+function dvslider(x,y,hhe : byte; wert,max : word) : string;
+
+  begin
+    if hhe<2 then hhe:=2;
+    if wert>max then wert:=max;
+    dvslider:=#255+chr(vslnum)+chr(x)+chr(y)+chr(hhe)+chr(hi(wert))+chr(lo(wert))+chr(hi(max))+chr(lo(max));
+  end;
+
+
+function _hslider : integer;
+
+  begin
+    _hslider:=hslnum;
+  end;
+
+
+function _vslider : integer;
+
+  begin
+    _vslider:=vslnum;
+  end;
+
+
+procedure verslider(wnum,com,dat1,dat2 : byte);
+  label sl_nmove;
+
+  var dtxta,q,x,y,ybis : byte;
+      mx,my,mb,yo,hhe  : byte;
+      wert,max,wdif    : word;
+
+  begin
+    dtxta:=textattr;
+    x:=byteout[2]+ord(work[wnum,3]);
+    y:=byteout[3]+ord(work[wnum,4]);
+    hhe:=ord(work[wnum,5]);
+    if hhe<2 then
+      begin
+        hhe:=2;
+        if com<>99 then work[wnum,5]:=#2;
+      end;
+    ybis:=pred(y+hhe);
+    wert:=ord(work[wnum,6])*256+ord(work[wnum,7]);
+    max:=ord(work[wnum,8])*256+ord(work[wnum,9]);
+    textattr:=saw_dia;
+    case com of
+      0: begin
+           printxy(x,y,#24);
+           printxy(x,ybis,#25);
+           if hhe>2 then
+             begin
+               for q:=succ(y) to pred(ybis) do printxy(x,q,'°');
+               textattr:=weissaufschwarz;
+               if max>0 then printxy(x,succ(y+trunc((hhe-3)*wert/max)),#18)
+                 else printxy(x,succ(y),' ');
+             end;
+         end;
+      1: begin
+           byteout[0]:=ord(work[wnum,3]);
+           byteout[1]:=ord(work[wnum,4]);
+           byteout[2]:=byteout[0];
+           byteout[3]:=pred(byteout[1]+hhe);
+           byteout[4]:=0;
+         end;
+   2,11: begin
+           if max=0 then
+             begin
+               repeat until mouseb=0;
+               goto sl_nmove;
+             end;
+           yo:=succ(y+trunc((hhe-3)*wert/max));
+           if dat2=y then
+             begin
+               if wert>0 then
+                 begin
+                   if hhe>2 then printxy(x,yo,'°');
+                   dec(wert);
+                   form_setslider(wnum,wert);
+                   textattr:=weissaufschwarz;
+                   if hhe>2 then printxy(x,succ(y+trunc((hhe-3)*wert/max)),#18);
+                   delay(sldelay);
+                 end
+               else repeat until mouseb=0;
+             end
+           else
+             if dat2=ybis then
+               begin
+                 if wert<max then
+                   begin
+                     if hhe>2 then printxy(x,yo,'°');
+                     inc(wert);
+                     form_setslider(wnum,wert);
+                     textattr:=weissaufschwarz;
+                     if hhe>2 then printxy(x,succ(y+trunc((hhe-3)*wert/max)),#18);
+                     delay(sldelay);
+                   end
+                 else repeat until mouseb=0;
+               end
+             else
+               if hhe>3 then
+                 begin
+                   wdif:=max div (hhe-3);
+                   if (dat2>y) and (dat2<yo) then
+                     begin
+                       printxy(x,yo,'°');
+                       if wdif>wert then wert:=0
+                         else dec(wert,wdif);
+                       form_setslider(wnum,wert);
+                       textattr:=weissaufschwarz;
+                       printxy(x,succ(y+trunc((hhe-3)*wert/max)),#18);
+                       delay(slmdelay);
+                     end
+                   else
+                     if (dat2>yo) and (dat2<ybis) then
+                       begin
+                         printxy(x,yo,'°');
+                         if (wert+wdif)>max then wert:=max
+                           else inc(wert,wdif);
+                         form_setslider(wnum,wert);
+                         textattr:=weissaufschwarz;
+                         printxy(x,succ(y+trunc((hhe-3)*wert/max)),#18);
+                         delay(slmdelay);
+                       end
+                     else
+                       if dat2=yo then
+                         begin
+                           textattr:=weissaufschwarz;
+                           printxy(x,yo,'þ');
+                           repeat
+                             getmouse(mx,my,mb);
+                             if my<succ(y) then my:=succ(y);
+                             if my>pred(ybis) then my:=pred(ybis);
+                             if (my<>yo) then
+                               begin
+                                 textattr:=saw_dia;
+                                 printxy(x,yo,'°');
+                                 yo:=my;
+                                 textattr:=weissaufschwarz;
+                                 printxy(x,yo,'þ');
+                               end;
+                           until mb=0;
+                           wert:=pred(yo-y)*wdif;
+                           while succ(y+trunc((hhe-3)*wert/max))<yo do inc(wert);
+                           form_setslider(wnum,wert);
+                           textattr:=saw_dia;
+                           printxy(x,yo,'°');
+                           textattr:=weissaufschwarz;
+                           printxy(x,succ(y+trunc((hhe-3)*wert/max)),#18);
+                         end;
+                 end;
+           sl_nmove:
+           byteout[3]:=0;
+           hide;
+         end;
+      3: if byteout[4]=0 then byteout[3]:=succ(wnum)
+           else byteout[3]:=pred(wnum);
+      5: byteout[0]:=0;
+     10: byteout[3]:=0;
+    end;
+    textattr:=dtxta;
+  end;
+
+
+procedure horslider(wnum,com,dat1,dat2 : byte);
+  label sl_nmove;
+
+  var dtxta,q,x,y,xbis : byte;
+      mx,my,mb,brt,xo  : byte;
+      wert,max,wdif    : word;
+
+  begin
+    dtxta:=textattr;
+    x:=byteout[2]+ord(work[wnum,3]);
+    y:=byteout[3]+ord(work[wnum,4]);
+    brt:=ord(work[wnum,5]);
+    if brt<2 then
+      begin
+        brt:=2;
+        if com<>99 then work[wnum,5]:=#2
+      end;
+    xbis:=pred(x+brt);
+    wert:=ord(work[wnum,6])*256+ord(work[wnum,7]);
+    max:=ord(work[wnum,8])*256+ord(work[wnum,9]);
+    textattr:=saw_dia;
+    case com of
+      0: begin
+           printxy(x,y,#27);
+           printxy(xbis,y,#26);
+           if brt>2 then
+             begin
+               printxy(succ(x),y,strg('°',brt-2));
+               textattr:=weissaufschwarz;
+               if max>0 then printxy(succ(x+trunc((brt-3)*wert/max)),y,#29)
+                 else printxy(succ(x),y,' ');
+             end;
+         end;
+      1: begin
+           byteout[0]:=ord(work[wnum,3]);
+           byteout[1]:=ord(work[wnum,4]);
+           byteout[2]:=pred(byteout[0]+brt);
+           byteout[3]:=byteout[1];
+           byteout[4]:=0;
+         end;
+   2,11: begin
+           if max=0 then
+             begin
+               repeat until mouseb=0;
+               goto sl_nmove;
+             end;
+           xo:=succ(x+trunc((brt-3)*wert/max));
+           if dat1=x then
+             begin
+               if wert>0 then
+                 begin
+                   if brt>2 then printxy(xo,y,'°');
+                   dec(wert);
+                   form_setslider(wnum,wert);
+                   textattr:=weissaufschwarz;
+                   if brt>2 then printxy(succ(x+trunc((brt-3)*wert/max)),y,#29);
+                   delay(sldelay);
+                 end
+               else repeat until mouseb=0;
+             end
+           else
+             if dat1=xbis then
+               begin
+                 if wert<max then
+                   begin
+                     if brt>2 then printxy(xo,y,'°');
+                     inc(wert);
+                     form_setslider(wnum,wert);
+                     textattr:=weissaufschwarz;
+                     if brt>2 then printxy(succ(x+trunc((brt-3)*wert/max)),y,#29);
+                     delay(sldelay);
+                   end
+                 else repeat until mouseb=0;
+               end
+             else
+               if brt>3 then
+                 begin
+                   wdif:=max div (brt-3);
+                   if (dat1>x) and (dat1<xo) then
+                     begin
+                       printxy(xo,y,'°');
+                       if wdif>wert then wert:=0
+                         else dec(wert,wdif);
+                       form_setslider(wnum,wert);
+                       textattr:=weissaufschwarz;
+                       printxy(succ(x+trunc((brt-3)*wert/max)),y,#29);
+                       delay(slmdelay);
+                     end
+                   else
+                     if (dat1>xo) and (dat1<xbis) then
+                       begin
+                         printxy(xo,y,'°');
+                         if (wert+wdif)>max then wert:=max
+                           else inc(wert,wdif);
+                         form_setslider(wnum,wert);
+                         textattr:=weissaufschwarz;
+                         printxy(succ(x+trunc((brt-3)*wert/max)),y,#29);
+                         delay(slmdelay);
+                       end
+                     else
+                       if dat1=xo then
+                         begin
+                           textattr:=weissaufschwarz;
+                           printxy(xo,y,'þ');
+                           repeat
+                             getmouse(mx,my,mb);
+                             if mx<succ(x) then mx:=succ(x);
+                             if mx>pred(xbis) then mx:=pred(xbis);
+                             if (mx<>xo) then
+                               begin
+                                 textattr:=saw_dia;
+                                 printxy(xo,y,'°');
+                                 xo:=mx;
+                                 textattr:=weissaufschwarz;
+                                 printxy(xo,y,'þ');
+                               end;
+                           until mb=0;
+                           wert:=pred(xo-x)*wdif;
+                           while succ(x+trunc((brt-3)*wert/max))<xo do inc(wert);
+                           form_setslider(wnum,wert);
+                           textattr:=saw_dia;
+                           printxy(xo,y,'°');
+                           textattr:=weissaufschwarz;
+                           printxy(succ(x+trunc((brt-3)*wert/max)),y,#29);
+                         end;
+                 end;
+           sl_nmove:
+           byteout[3]:=0;
+           hide;
+         end;
+      3: if byteout[4]=0 then byteout[3]:=succ(wnum)
+           else byteout[3]:=pred(wnum);
+      5: byteout[0]:=0;
+     10: byteout[3]:=0;
+    end;
+    textattr:=dtxta;
+  end;
+
+
+function stn(var strng : string; ch : char) : integer;
+  var p : byte;
+
+  begin
+    p:=pos(ch,strng);
+    if p>0 then
+      begin
+        stn:=atoi(left(strng,pred(p)));
+        strng:=right(strng,length(strng)-p);
+      end
+    else
+      begin
+        stn:=atoi(strng);
+        strng:='';
+      end;
+  end;
 
 
 procedure get_files(path : string);
@@ -52,6 +409,7 @@ procedure get_files(path : string);
       srec  : searchrec;
       dummy : string[12];
       nvrnd : boolean;
+      q     : byte;
 
   begin
     oanz:=-1;
@@ -120,22 +478,22 @@ procedure get_files(path : string);
 procedure fl_invert(x,y : byte);
 
   begin
-    setattr(succ(x),succ(y+lnum),was,14);
+    setattr(succ(x),succ(y+lnum),weissaufschwarz,14);
     form_setan(8,files[fanf+form_getslider(15)+lnum]);
     byteout[2]:=oxp;
     byteout[3]:=oyp;
-    form_objcall(dalphanum,8,0,0,0);
+    form_objcall(do_anum,8,0,0,0);
   end;
 
 
 procedure list_print(wnum,x,y,h : byte);
   var wert,max : word;
       anz,anf  : integer;
-      bis,sb   : byte;
+      bis,sb,q : byte;
       name     : string[16];
 
   begin
-    textattr:=saw;
+    textattr:=saw_dia;
     inc(x);
     inc(y);
     if wnum=16 then
@@ -173,16 +531,17 @@ procedure list_print(wnum,x,y,h : byte);
     if lnum>-1 then
       begin
         if wnum=15 then fl_invert(pred(x),pred(y))
-          else setattr(x,y+lnum,was,16);
+          else setattr(x,y+lnum,weissaufschwarz,16);
       end;
   end;
 
 
 procedure liste(wnum,com,dat1,dat2 : byte);
-  var dtxta,x,y,wn6,bp,ly : byte;
-      ow,om               : word;
-      hkey                : char;
-      entryok             : boolean;
+  var dtxta,x,y,wn6,bp,ly,q : byte;
+      ow,om                 : word;
+      hkey                  : char;
+      entryok               : boolean;
+      dummy                 : string;
 
   begin
     dtxta:=textattr;
@@ -191,12 +550,12 @@ procedure liste(wnum,com,dat1,dat2 : byte);
     x:=oxp+ord(work[wnum,3]);
     y:=oyp+ord(work[wnum,4]);
     hkey:=work[wnum,9];
-    textattr:=saw;
+    textattr:=saw_dia;
     wn6:=wnum+6;
     case com of
       0: begin
            verslider(wn6,0,0,0);
-           textattr:=haw;
+           textattr:=haw_dia;
            printxy(byteout[2]+ord(work[wnum,7]),byteout[3]+ord(work[wnum,8]),hkey);
            list_print(wn6,x,y,ord(work[wnum,6])-2);
          end;
@@ -216,7 +575,7 @@ procedure liste(wnum,com,dat1,dat2 : byte);
                  begin
                    lnum:=0;
                    if wnum=9 then fl_invert(x,y)
-                     else setattr(succ(x),succ(y),was,16);
+                     else setattr(succ(x),succ(y),weissaufschwarz,16);
                    ow:=form_getslider(wn6);
                    verslider(wn6,2,dat1,dat2);
                    dec(lnum,form_getslider(wn6)-ow);
@@ -242,7 +601,7 @@ procedure liste(wnum,com,dat1,dat2 : byte);
                    else
                      begin
                        if (form_getslidermax(wn6)=0) and (lnum>oanz) then lnum:=oanz;
-                       setattr(succ(x),succ(lnum)+y,was,16);
+                       setattr(succ(x),succ(lnum)+y,weissaufschwarz,16);
                      end;
                    repeat until (mouseb=0) or (mousey<>dat2);
                  end;
@@ -251,7 +610,7 @@ procedure liste(wnum,com,dat1,dat2 : byte);
              begin
                lnum:=0;
                if wnum=9 then fl_invert(x,y)
-                 else setattr(succ(x),succ(y),was,16);
+                 else setattr(succ(x),succ(y),weissaufschwarz,16);
              end;
            byteout[3]:=0;
            hide;
@@ -260,7 +619,7 @@ procedure liste(wnum,com,dat1,dat2 : byte);
            begin
              lnum:=0;
              if wnum=9 then fl_invert(x,y)
-               else setattr(succ(x),succ(y),was,16);
+               else setattr(succ(x),succ(y),weissaufschwarz,16);
              byteout[3]:=0;
            end
          else
@@ -271,8 +630,8 @@ procedure liste(wnum,com,dat1,dat2 : byte);
       5: if (upper(hkey)=upper(chr(dat2))) and (((wnum=9) and (fanz>=0)) or ((wnum=10) and (oanz>=0))) then byteout[0]:=1
            else byteout[0]:=0;
       7: begin
-           if wnum=9 then setattr(succ(x),succ(y+lnum),saw,14)
-             else setattr(succ(x),succ(y+lnum),saw,16);
+           if wnum=9 then setattr(succ(x),succ(y+lnum),saw_dia,14)
+             else setattr(succ(x),succ(y+lnum),saw_dia,16);
            lnum:=-1;
          end;
      10: begin
@@ -462,15 +821,15 @@ procedure liste(wnum,com,dat1,dat2 : byte);
                      begin
                        if wnum=9 then
                          begin
-                           setattr(succ(x),succ(y+lnum),saw,14);
+                           setattr(succ(x),succ(y+lnum),saw_dia,14);
                            lnum:=pred(dat2-y);
                            fl_invert(x,y);
                          end
                        else
                          begin
-                           setattr(succ(x),succ(y+lnum),saw,16);
+                           setattr(succ(x),succ(y+lnum),saw_dia,16);
                            lnum:=pred(dat2-y);
-                           setattr(succ(x),dat2,was,16);
+                           setattr(succ(x),dat2,weissaufschwarz,16);
                          end;
                        repeat
                          ly:=mousey;
@@ -558,6 +917,8 @@ function fileselect(title,path,exts,default : string) : string;
 
   var but,lnr  : integer;
       worksave : array [0..16] of string[90];
+      dummy    : string;
+      q        : byte;
 
   begin
     lnr:=form_objins(liste);
@@ -633,13 +994,13 @@ function fileselect(title,path,exts,default : string) : string;
   end;
 
 
-begin
-  vslnum:=form_objins(verslider);
-  hslnum:=form_objins(horslider);
-  menu_inquire;
-  dalphanum:=byteout[24];
-  obj_setcolor(byteout[0],byteout[2],byteout[15],byteout[16]);
-  form_setslsdelay(75);
-  form_setslmdelay(150);
-  fox:=255;  foy:=255;
-end.
+procedure objc_init;
+
+  begin
+    vslnum:=form_objins(verslider);
+    hslnum:=form_objins(horslider);
+    form_setslsdelay(75);
+    form_setslmdelay(150);
+    fox:=255;
+    foy:=255;
+  end;

@@ -1,4 +1,4 @@
-{ ASV 1.3 PRCS vom 20.04.1991 }
+{ ASV 1.4 PRCS vom 20.06.1991 }
 
 function upchar(ch : char) : char;
   var dummy : byte;
@@ -407,12 +407,12 @@ function exist(path : string) : boolean;
   end;
 
 
-procedure cls(att : byte);
+procedure clsp(att,zch : byte);
   var catt,start : word;
 
   begin
     hidemouse;
-    catt:=(att shl 8)+32;
+    catt:=(att shl 8)+zch;
     if m_stat<=0 then
       begin
         vofs:=0;
@@ -429,6 +429,13 @@ procedure cls(att : byte);
         inc(vofs,2);
       end;
     showmouse;
+  end;
+
+
+procedure cls(att : byte);
+
+  begin
+    clsp(att,C_SPACE);
   end;
 
 
@@ -970,6 +977,300 @@ procedure radiobutton(wnum,com,dat1,dat2 : byte);
                 if (fst>0) and (gef=0) then work[fst,6]:=#1;
               end;
           end;
+    end;
+    textattr:=txto;
+  end;
+
+
+procedure alphainp(wnum,com,dat1,dat2 : byte);
+  var txto,mx,my,mb,x,y,ds : byte;
+      fanf,br,mbr,dummy    : byte;
+      hkey                 : char;
+      title,anstr          : string;
+
+  begin
+    txto:=textattr;
+    x:=byteout[2]+ord(work[wnum,3]);
+    y:=byteout[3]+ord(work[wnum,4]);
+    br:=ord(work[wnum,5]);
+    mbr:=ord(work[wnum,6]);
+    ds:=ord(work[wnum,7]);
+    title:=copy(work[wnum],9,ord(work[wnum,8]));
+    dummy:=pos('#',title);
+    if (dummy>0) and (dummy<length(title)) then
+      begin
+        hkey:=title[succ(dummy)];
+        title:=left(title,pred(dummy))+right(title,length(title)-dummy);
+      end
+    else hkey:=#0;
+    anstr:=form_getan(wnum);
+    fanf:=x+length(title)+2;
+    textattr:=saw_dia;
+    case com of
+      0: begin
+           if mbr<2 then
+             begin
+               mbr:=2;
+               work[wnum,6]:=#2;
+             end;
+           if br<2 then
+             begin
+               br:=2;
+               work[wnum,5]:=#2;
+             end;
+           if length(anstr)>mbr then
+             begin
+               anstr:=left(anstr,mbr);
+               form_setan(wnum,anstr);
+             end;
+           if ds=B_DISABLED then
+             begin
+               if farbe then textattr:=(haw_dia and 240)+darkgray
+                 else textattr:=haw_dia;
+             end;
+           printxy(x,y,title+' ['+strg('.',br)+']');
+           printxy(fanf,y,left(anstr,br));
+           if (hkey<>#0) and (ds<>B_DISABLED) then
+             begin
+               textattr:=haw_dia;
+               printxy(pred(x+dummy),y,hkey);
+             end;
+         end;
+      1: if ds=B_DISABLED then for dummy:=0 to 4 do byteout[dummy]:=0
+         else
+           begin
+             byteout[0]:=ord(work[wnum,3])+length(title)+2;
+             byteout[1]:=ord(work[wnum,4]);
+             byteout[2]:=pred(byteout[0]+br);
+             byteout[3]:=byteout[1];
+             byteout[4]:=1;
+           end;
+    2,3: if ds=B_DISABLED then
+           begin
+             if byteout[4]=0 then byteout[3]:=succ(wnum)
+               else byteout[3]:=pred(wnum);
+             if byteout[3]<rbv then byteout[3]:=255;
+           end
+         else
+           begin
+             if (com=2) and (dat1>0) then
+               begin
+                 ano:=0;
+                 anp:=dat1-fanf;
+                 tstat:=false;
+               end
+             else
+               begin
+                 if length(anstr)>=br then
+                   begin
+                     ano:=succ(length(anstr)-br);
+                     printxy(fanf,y,right(anstr,pred(br))+'.');
+                     setattr(fanf,y,weissaufschwarz,pred(br));
+                   end
+                 else
+                   begin
+                     ano:=0;
+                     setattr(fanf,y,weissaufschwarz,length(anstr));
+                   end;
+                 anp:=pred(br);
+                 if length(anstr)>0 then tstat:=true else tstat:=false;
+               end;
+             if ano+anp>length(anstr) then anp:=length(anstr)-ano;
+             if tstat then hide else gotoxy(fanf+anp,y);
+             byteout[3]:=0;
+           end;
+      5: if (upchar(chr(dat2))=upchar(hkey)) and (ds<>B_DISABLED) then byteout[0]:=1
+           else byteout[0]:=0;
+      7: if ds<>B_DISABLED then
+           begin
+             printxy(fanf,y,strg('.',br));
+             printxy(fanf,y,left(anstr,br));
+             tstat:=false;
+           end;
+      10: begin
+            if dat1=KEY_SPEC then
+              case dat2 of
+                71: begin
+                      ano:=0;
+                      anp:=0;
+                      printxy(fanf,y,strg('.',br));
+                      printxy(fanf,y,left(anstr,br));
+                      gotoxy(fanf,y);
+                      tstat:=false;
+                    end;
+                79: begin
+                      if length(anstr)>=br then ano:=succ(length(anstr)-br) else ano:=0;
+                      printxy(fanf,y,right(anstr,pred(br))+'.');
+                      anp:=pred(br);
+                      if ano+anp>length(anstr) then anp:=length(anstr)-ano;
+                      gotoxy(fanf+anp,y);
+                      tstat:=false;
+                    end;
+                75: if tstat then
+                      begin
+                        if length(anstr)>=br then setattr(fanf,y,saw_dia,pred(br))
+                          else setattr(fanf,y,saw_dia,length(anstr));
+                        dec(anp);
+                        gotoxy(fanf+anp,y);
+                        tstat:=false;
+                      end
+                    else
+                      begin
+                        if anp>0 then
+                          begin
+                            dec(anp);
+                            gotoxy(fanf+anp,y);
+                          end
+                        else
+                          if ano>0 then
+                            begin
+                              printxy(fanf,y,copy(anstr,ano,br));
+                              dec(ano);
+                            end;
+                      end;
+                77: if tstat then
+                      begin
+                        if length(anstr)>=br then setattr(fanf,y,saw_dia,pred(br))
+                          else setattr(fanf,y,saw_dia,length(anstr));
+                        gotoxy(fanf+anp,y);
+                        tstat:=false;
+                      end
+                    else
+                      if ano+anp<length(anstr) then
+                        begin
+                          inc(anp);
+                          if anp>pred(br) then
+                            begin
+                              inc(ano);
+                              anp:=pred(br);
+                              if ano>length(anstr)-br then printxy(fanf,y,copy(anstr,succ(ano),pred(br))+'.')
+                                else printxy(fanf,y,copy(anstr,succ(ano),br));
+                            end;
+                          if ano+anp>length(anstr) then anp:=length(anstr)-ano;
+                          gotoxy(fanf+anp,y);
+                        end;
+                83: if tstat then
+                      begin
+                        ano:=0;
+                        anp:=0;
+                        printxy(fanf,y,strg('.',br));
+                        form_setan(wnum,'');
+                        gotoxy(fanf,y);
+                        tstat:=false;
+                      end
+                    else
+                      if ano+anp<length(anstr) then
+                        begin
+                          anstr:=left(anstr,ano+anp)+right(anstr,pred(length(anstr)-ano-anp));
+                          if ano>length(anstr)-br then printxy(fanf,y,copy(anstr,succ(ano),pred(br))+'.')
+                            else printxy(fanf,y,copy(anstr,succ(ano),br));
+                          form_setan(wnum,anstr);
+                        end;
+              end
+            else
+              case dat2 of
+                 8: if tstat then
+                      begin
+                        ano:=0;
+                        anp:=0;
+                        printxy(fanf,y,strg('.',br));
+                        form_setan(wnum,'');
+                        gotoxy(fanf,y);
+                        tstat:=false;
+                      end
+                    else
+                      if ano+anp>0 then
+                        begin
+                          if anp=0 then dec(ano) else dec(anp);
+                          if (anp=0) and (ano>0) then
+                            begin
+                              dec(ano);
+                              anp:=1;
+                            end;
+                          anstr:=left(anstr,ano+anp)+right(anstr,pred(length(anstr)-ano-anp));
+                          if ano>length(anstr)-br then printxy(fanf,y,copy(anstr,succ(ano),pred(br))+'.')
+                            else printxy(fanf,y,copy(anstr,succ(ano),br));
+                          form_setan(wnum,anstr);
+                          gotoxy(fanf+anp,y);
+                        end;
+                25: begin
+                      ano:=0;
+                      anp:=0;
+                      printxy(fanf,y,strg('.',br));
+                      form_setan(wnum,'');
+                      gotoxy(fanf,y);
+                      tstat:=false;
+                    end;
+              else
+                begin
+                  if tstat then
+                    begin
+                      if dat2>31 then
+                        begin
+                          ano:=0;
+                          anp:=1;
+                          printxy(fanf,y,chr(dat2)+strg('.',pred(br)));
+                          form_setan(wnum,chr(dat2));
+                          gotoxy(succ(fanf),y);
+                          tstat:=false;
+                        end;
+                    end
+                  else
+                    if ((length(anstr)<mbr) or (ano+anp<mbr)) and (dat2>31) then
+                      begin
+                        anstr:=left(left(anstr,ano+anp)+chr(dat2)+right(anstr,length(anstr)-ano-anp),mbr);
+                        if anp<pred(br) then inc(anp) else inc(ano);
+                        if ano>length(anstr)-br then printxy(fanf,y,copy(anstr,succ(ano),pred(br))+'.')
+                          else printxy(fanf,y,copy(anstr,succ(ano),br));
+                        form_setan(wnum,anstr);
+                        gotoxy(fanf+anp,y);
+                      end;
+                end;
+              end;
+            byteout[3]:=0;
+          end;
+      11: begin
+            if tstat then
+              begin
+                if length(anstr)>=br then setattr(fanf,y,saw_dia,pred(br))
+                  else setattr(fanf,y,saw_dia,length(anstr));
+                tstat:=false;
+              end;
+            showmouse;
+            anp:=dat1-fanf;
+            if ano+anp>length(anstr) then anp:=length(anstr)-ano;
+            gotoxy(fanf+anp,y);
+            repeat
+              getmouse(mx,my,mb);
+              if mx<pred(fanf) then
+                begin
+                  anp:=0;
+                  if ano>0 then
+                    begin
+                      printxy(fanf,y,copy(anstr,ano,br));
+                      dec(ano);
+                      delay(50);
+                    end;
+                  gotoxy(fanf,y);
+                end;
+              if (mx>fanf+br) then
+                begin
+                  anp:=pred(br);
+                  if ano<=length(anstr)-br then
+                    begin
+                      inc(ano);
+                      if ano>length(anstr)-br then printxy(fanf,y,copy(anstr,succ(ano),pred(br))+'.')
+                        else printxy(fanf,y,copy(anstr,succ(ano),br));
+                      delay(50);
+                    end;
+                  if ano+anp>length(anstr) then anp:=length(anstr)-ano;
+                  gotoxy(fanf+anp,y);
+                end;
+            until mb=0;
+            byteout[3]:=0;
+            hidemouse;
+          end;
+      99: rbv:=dat1;
     end;
     textattr:=txto;
   end;

@@ -1,10 +1,10 @@
 {***********************************
- * ASV - Application Services 1.3  *
+ * ASV - Application Services 1.4  *
  * Copyright (c)1991 by Softdesign *
  *  written by Thomas Much         *
  ***********************************
  * entwickelt am:     24.05.1990   *
- * letztes Update am: 21.04.1991   *
+ * letztes Update am: 20.06.1991   *
  ***********************************}
 
 unit asv;
@@ -15,7 +15,7 @@ interface
   uses dos,crt;
 
   const _magic     = 18011972;
-        _asv       = 1.3;      _wmax      = 99;
+        _asv       = 1.4;      _wmax      = 99;
         _bmax      = 24;       _imax      = 14;     _womax    = 4;
         M_EXIT     = 255;                           _dobjmax  = 19;
         M_OK       = 0;        M_HELP     = 254;
@@ -29,7 +29,7 @@ interface
         E_MUSED    = -15;      M_PULL     = 0;      D_NONE    = 0;
         E_NINIT    = -16;      M_DROP     = 1;      D_CLOSE   = 1;
         E_NBUT     = -17;      X_BOTH     = 0;      D_MOVE    = 2;
-        E_DSTRUC   = -18;      X_OK       = 1;
+        E_DSTRUC   = -18;      X_OK       = 1;      D_GRAF    = 4;
         E_DTBIG    = -19;      X_CANCEL   = 2;      F_OK      = 0;
         E_MSTRUC   = -20;                           F_ERROR   = -1;
         RSHIFT     = 1;        LSHIFT     = 2;      F_NONE    = 255;
@@ -39,8 +39,10 @@ interface
         L_USA      = 1;        PC         = 0;      P_ONLINE  = 16;
         L_FRG      = 2;        XT         = 1;      P_EPAPER  = 32;
         L_GB       = 8;        AT         = 3;
-        A_NCHECKED = 1;        A_CHECKED  = 2;      P_OFFS    = 123;
-        A_ENABLED  = 3;        A_DISABLED = 4;
+        A_NCHECKED = 1;        C_SPACE    = 32;
+        A_ENABLED  = 3;        C_WDOT     = 176;
+        A_CHECKED  = 2;        C_MDOT     = 177;     P_OFFS   = 123;
+        A_DISABLED = 4;        C_CDOT     = 178;
         M_LEFT     = 1;        M_MID      = 4;       M_RIGHT  = 2;
         K_F1       = 59;       K_F2       = 60;      K_INS    = 82;
         K_F3       = 61;       K_F4       = 62;      K_DEL    = 83;
@@ -52,24 +54,9 @@ interface
         K_LF       = 10;       K_FF       = 12;      K_DOWN   = 80;
                                K_LEFT     = 75;      K_RIGHT  = 77;
 
-  type vtype = record
-                 case integer of
-                   0  : (b : byte);
-                   1  : (si : shortint);
-                   2  : (i : integer);
-                   3  : (w : word);
-                   4  : (l : longint);
-                   5  : (bo : boolean);
-                   6  : (c : char);
-                   7  : (s : string);
-                   8  : (r : real);
-                   9  : (sr : single);
-                   10 : (d : double);
-                   11 : (e : extended);
-                   12 : (co : comp);
-               end;
-       pvtype   = procedure(wnum : byte);
-       dobjtype = procedure(wnum,com,dat1,dat2 : byte);
+
+  {$I c:\pascal\units\asv_inc\asv_typs.inc}
+
 
   var work    : array [0.._wmax] of string[90];
       intout  : array [0.._imax] of integer;
@@ -112,6 +99,7 @@ interface
   procedure defmouse(smask,cmask : word);
   function attr(ink,pap : byte) : byte;
   function exist(path : string) : boolean;
+  procedure clsp(att,zch : byte);
   procedure cls(att : byte);
   procedure setattr(tx,ty,art,len : byte);
   function form_objins(nobj : dobjtype) : integer;
@@ -170,14 +158,25 @@ interface
   procedure mouse_resett;
   function asverror : integer;
   procedure asv_init;
+  procedure form_setslsdelay(dl : word);
+  function form_getslsdelay : word;
+  procedure form_setslmdelay(dl : word);
+  function form_getslmdelay : word;
+  function form_getslidermax(wnum : byte) : word;
+  procedure form_setslider(wnum : byte; wert : word);
+  function form_getslider(wnum : byte) : word;
+  procedure form_setslidermax(wnum : byte; max : word);
+  function dhslider(x,y,brt : byte; wert,max : word) : string;
+  function dvslider(x,y,hhe : byte; wert,max : word) : string;
+  function _hslider : integer;
+  function _vslider : integer;
+  function stn(var strng : string; ch : char) : integer;
+  function fileselect(title,path,exts,default : string) : string;
 
 
 implementation
 
-  const _mmax = 19; _emin = -20; _viormax = 2239;
-
-  type wordptr = ^word;
-       byteptr = ^byte;
+  const _mmax = 19; _emin = -20; _viormax = 2239; fmax = 399;
 
   var mbegin,mxpos                : array [0.._mmax] of integer;
       mecurr                      : array [0.._mmax] of byte;
@@ -190,9 +189,12 @@ implementation
       anzline,anzcol,asvierror    : integer;
       ccode,menn,loff,m_num       : integer;
       curr_sx,curr_sy,curr_dst    : integer;
+      oanz,fanf,fanz,exanz        : integer;
+      hslnum,vslnum,lnum          : integer;
       dialog_aktiv,mausda,mausvis : boolean;
       farbe,menk,tstat            : boolean;
       vioseg,dbits,vofs,wq        : word;
+      sldelay,slmdelay            : word;
       vioram                      : array [0.._viormax] of word;
       titleram                    : array [0..169] of word;
       weissaufschwarz,disabled,sc : byte;
@@ -204,309 +206,18 @@ implementation
       do_rnum,do_pnum,do_anum,anp : byte;
       hellaufweiss,crsof,haw_ale  : byte;
       eexit_stat,mpd_stat         : byte;
+      fox,foy,oxp,oyp             : byte;
       m_pcall                     : pvtype;
       dhkstr                      : string[30];
-      sdummy                      : string;
+      sdummy,pfad                 : string;
       exitsave,heapsave,oldbreak  : pointer;
       p1,p2,p3                    : wordptr;
       dobjmem                     : array[0.._dobjmax] of dobjtype;
+      files                       : array [0..fmax] of string[12];
+      extension                   : array [0..4] of string[12];
 
 
   {$I c:\pascal\units\asv_inc\asv_prcs.inc}
-
-
-procedure alphainp(wnum,com,dat1,dat2 : byte);
-  var txto,mx,my,mb,x,y,ds : byte;
-      fanf,br,mbr,dummy    : byte;
-      hkey                 : char;
-      title,anstr          : string;
-
-  begin
-    txto:=textattr;
-    x:=byteout[2]+ord(work[wnum,3]);
-    y:=byteout[3]+ord(work[wnum,4]);
-    br:=ord(work[wnum,5]);
-    mbr:=ord(work[wnum,6]);
-    ds:=ord(work[wnum,7]);
-    title:=copy(work[wnum],9,ord(work[wnum,8]));
-    dummy:=pos('#',title);
-    if (dummy>0) and (dummy<length(title)) then
-      begin
-        hkey:=title[succ(dummy)];
-        title:=left(title,pred(dummy))+right(title,length(title)-dummy);
-      end
-    else hkey:=#0;
-    anstr:=form_getan(wnum);
-    fanf:=x+length(title)+2;
-    textattr:=saw_dia;
-    case com of
-      0: begin
-           if mbr<2 then
-             begin
-               mbr:=2;
-               work[wnum,6]:=#2;
-             end;
-           if br<2 then
-             begin
-               br:=2;
-               work[wnum,5]:=#2;
-             end;
-           if length(anstr)>mbr then
-             begin
-               anstr:=left(anstr,mbr);
-               form_setan(wnum,anstr);
-             end;
-           if ds=B_DISABLED then
-             begin
-               if farbe then textattr:=(haw_dia and 240)+darkgray
-                 else textattr:=haw_dia;
-             end;
-           printxy(x,y,title+' ['+strg('.',br)+']');
-           printxy(fanf,y,left(anstr,br));
-           if (hkey<>#0) and (ds<>B_DISABLED) then
-             begin
-               textattr:=haw_dia;
-               printxy(pred(x+dummy),y,hkey);
-             end;
-         end;
-      1: if ds=B_DISABLED then for dummy:=0 to 4 do byteout[dummy]:=0
-         else
-           begin
-             byteout[0]:=ord(work[wnum,3])+length(title)+2;
-             byteout[1]:=ord(work[wnum,4]);
-             byteout[2]:=pred(byteout[0]+br);
-             byteout[3]:=byteout[1];
-             byteout[4]:=1;
-           end;
-    2,3: if ds=B_DISABLED then
-           begin
-             if byteout[4]=0 then byteout[3]:=succ(wnum)
-               else byteout[3]:=pred(wnum);
-             if byteout[3]<rbv then byteout[3]:=255;
-           end
-         else
-           begin
-             if (com=2) and (dat1>0) then
-               begin
-                 ano:=0;
-                 anp:=dat1-fanf;
-                 tstat:=false;
-               end
-             else
-               begin
-                 if length(anstr)>=br then
-                   begin
-                     ano:=succ(length(anstr)-br);
-                     printxy(fanf,y,right(anstr,pred(br))+'.');
-                     setattr(fanf,y,weissaufschwarz,pred(br));
-                   end
-                 else
-                   begin
-                     ano:=0;
-                     setattr(fanf,y,weissaufschwarz,length(anstr));
-                   end;
-                 anp:=pred(br);
-                 if length(anstr)>0 then tstat:=true else tstat:=false;
-               end;
-             if ano+anp>length(anstr) then anp:=length(anstr)-ano;
-             if tstat then hide else gotoxy(fanf+anp,y);
-             byteout[3]:=0;
-           end;
-      5: if (upchar(chr(dat2))=upchar(hkey)) and (ds<>B_DISABLED) then byteout[0]:=1
-           else byteout[0]:=0;
-      7: if ds<>B_DISABLED then
-           begin
-             printxy(fanf,y,strg('.',br));
-             printxy(fanf,y,left(anstr,br));
-             tstat:=false;
-           end;
-      10: begin
-            if dat1=KEY_SPEC then
-              case dat2 of
-                71: begin
-                      ano:=0;
-                      anp:=0;
-                      printxy(fanf,y,strg('.',br));
-                      printxy(fanf,y,left(anstr,br));
-                      gotoxy(fanf,y);
-                      tstat:=false;
-                    end;
-                79: begin
-                      if length(anstr)>=br then ano:=succ(length(anstr)-br) else ano:=0;
-                      printxy(fanf,y,right(anstr,pred(br))+'.');
-                      anp:=pred(br);
-                      if ano+anp>length(anstr) then anp:=length(anstr)-ano;
-                      gotoxy(fanf+anp,y);
-                      tstat:=false;
-                    end;
-                75: if tstat then
-                      begin
-                        if length(anstr)>=br then setattr(fanf,y,saw_dia,pred(br))
-                          else setattr(fanf,y,saw_dia,length(anstr));
-                        dec(anp);
-                        gotoxy(fanf+anp,y);
-                        tstat:=false;
-                      end
-                    else
-                      begin
-                        if anp>0 then
-                          begin
-                            dec(anp);
-                            gotoxy(fanf+anp,y);
-                          end
-                        else
-                          if ano>0 then
-                            begin
-                              printxy(fanf,y,copy(anstr,ano,br));
-                              dec(ano);
-                            end;
-                      end;
-                77: if tstat then
-                      begin
-                        if length(anstr)>=br then setattr(fanf,y,saw_dia,pred(br))
-                          else setattr(fanf,y,saw_dia,length(anstr));
-                        gotoxy(fanf+anp,y);
-                        tstat:=false;
-                      end
-                    else
-                      if ano+anp<length(anstr) then
-                        begin
-                          inc(anp);
-                          if anp>pred(br) then
-                            begin
-                              inc(ano);
-                              anp:=pred(br);
-                              if ano>length(anstr)-br then printxy(fanf,y,copy(anstr,succ(ano),pred(br))+'.')
-                                else printxy(fanf,y,copy(anstr,succ(ano),br));
-                            end;
-                          if ano+anp>length(anstr) then anp:=length(anstr)-ano;
-                          gotoxy(fanf+anp,y);
-                        end;
-                83: if tstat then
-                      begin
-                        ano:=0;
-                        anp:=0;
-                        printxy(fanf,y,strg('.',br));
-                        form_setan(wnum,'');
-                        gotoxy(fanf,y);
-                        tstat:=false;
-                      end
-                    else
-                      if ano+anp<length(anstr) then
-                        begin
-                          anstr:=left(anstr,ano+anp)+right(anstr,pred(length(anstr)-ano-anp));
-                          if ano>length(anstr)-br then printxy(fanf,y,copy(anstr,succ(ano),pred(br))+'.')
-                            else printxy(fanf,y,copy(anstr,succ(ano),br));
-                          form_setan(wnum,anstr);
-                        end;
-              end
-            else
-              case dat2 of
-                 8: if tstat then
-                      begin
-                        ano:=0;
-                        anp:=0;
-                        printxy(fanf,y,strg('.',br));
-                        form_setan(wnum,'');
-                        gotoxy(fanf,y);
-                        tstat:=false;
-                      end
-                    else
-                      if ano+anp>0 then
-                        begin
-                          if anp=0 then dec(ano) else dec(anp);
-                          if (anp=0) and (ano>0) then
-                            begin
-                              dec(ano);
-                              anp:=1;
-                            end;
-                          anstr:=left(anstr,ano+anp)+right(anstr,pred(length(anstr)-ano-anp));
-                          if ano>length(anstr)-br then printxy(fanf,y,copy(anstr,succ(ano),pred(br))+'.')
-                            else printxy(fanf,y,copy(anstr,succ(ano),br));
-                          form_setan(wnum,anstr);
-                          gotoxy(fanf+anp,y);
-                        end;
-                25: begin
-                      ano:=0;
-                      anp:=0;
-                      printxy(fanf,y,strg('.',br));
-                      form_setan(wnum,'');
-                      gotoxy(fanf,y);
-                      tstat:=false;
-                    end;
-              else
-                begin
-                  if tstat then
-                    begin
-                      if dat2>31 then
-                        begin
-                          ano:=0;
-                          anp:=1;
-                          printxy(fanf,y,chr(dat2)+strg('.',pred(br)));
-                          form_setan(wnum,chr(dat2));
-                          gotoxy(succ(fanf),y);
-                          tstat:=false;
-                        end;
-                    end
-                  else
-                    if ((length(anstr)<mbr) or (ano+anp<mbr)) and (dat2>31) then
-                      begin
-                        anstr:=left(left(anstr,ano+anp)+chr(dat2)+right(anstr,length(anstr)-ano-anp),mbr);
-                        if anp<pred(br) then inc(anp) else inc(ano);
-                        if ano>length(anstr)-br then printxy(fanf,y,copy(anstr,succ(ano),pred(br))+'.')
-                          else printxy(fanf,y,copy(anstr,succ(ano),br));
-                        form_setan(wnum,anstr);
-                        gotoxy(fanf+anp,y);
-                      end;
-                end;
-              end;
-            byteout[3]:=0;
-          end;
-      11: begin
-            if tstat then
-              begin
-                if length(anstr)>=br then setattr(fanf,y,saw_dia,pred(br))
-                  else setattr(fanf,y,saw_dia,length(anstr));
-                tstat:=false;
-              end;
-            showmouse;
-            anp:=dat1-fanf;
-            if ano+anp>length(anstr) then anp:=length(anstr)-ano;
-            gotoxy(fanf+anp,y);
-            repeat
-              getmouse(mx,my,mb);
-              if mx<pred(fanf) then
-                begin
-                  anp:=0;
-                  if ano>0 then
-                    begin
-                      printxy(fanf,y,copy(anstr,ano,br));
-                      dec(ano);
-                      delay(50);
-                    end;
-                  gotoxy(fanf,y);
-                end;
-              if (mx>fanf+br) then
-                begin
-                  anp:=pred(br);
-                  if ano<=length(anstr)-br then
-                    begin
-                      inc(ano);
-                      if ano>length(anstr)-br then printxy(fanf,y,copy(anstr,succ(ano),pred(br))+'.')
-                        else printxy(fanf,y,copy(anstr,succ(ano),br));
-                      delay(50);
-                    end;
-                  if ano+anp>length(anstr) then anp:=length(anstr)-ano;
-                  gotoxy(fanf+anp,y);
-                end;
-            until mb=0;
-            byteout[3]:=0;
-            hidemouse;
-          end;
-      99: rbv:=dat1;
-    end;
-    textattr:=txto;
-  end;
 
 
 procedure but_invert(def,bdw,bypos,was,wie : byte);
@@ -810,6 +521,35 @@ procedure new_active(bdw,banz,bypos,xp,yp,dv : byte; var aktiv,mix,miy,max,may,k
   end;
 
 
+procedure graf_growbox(x,y,b,h : byte);
+  var xp,yp,q,nxp,nyp,w : byte;
+      dummy,dummy2      : string;
+
+  begin
+    xp:=x+(b shr 1);
+    yp:=y+(h shr 1);
+    dummy:='';
+    for q:=0 to b-2 do
+      begin
+        nxp:=pred(xp-(q shr 1));
+        printxy(nxp,yp,'⁄'+dummy+'ø');
+        printxy(nxp,succ(yp),'¿'+dummy+'Ÿ');
+        dummy:=dummy+'ƒ';
+        delay(1);
+      end;
+    cutr(dummy);
+    dummy2:='≥'+space(b-2)+'≥';
+    for q:=1 to h-2 do
+      begin
+        nyp:=pred(yp-(q shr 1));
+        printxy(nxp,nyp,'⁄'+dummy+'ø');
+        for w:=1 to q do printxy(nxp,nyp+w,dummy2);
+        printxy(nxp,succ(nyp+q),'¿'+dummy+'Ÿ');
+        delay(1);
+      end;
+  end;
+
+
 function dialog_do : integer;
   label derrjmp;
 
@@ -855,6 +595,7 @@ function dialog_do : integer;
         hidemouse;
         get_vioram(xp,yp,brt,hhe,cflag);
         textattr:=schwarzaufweiss;
+        if (dbits and D_GRAF)>0 then graf_growbox(xp,yp,brt,hhe);
         if (dbits and D_MOVE)>0 then printxy(xp,yp,'’'+strg('Õ',brt-2)+'∏')
           else printxy(xp,yp,'⁄'+strg('ƒ',brt-2)+'ø');
         spstr:='≥'+space(brt-2)+'≥';
@@ -1300,82 +1041,6 @@ function dialog_do : integer;
 
 {$I c:\pascal\units\asv_inc\asv_alrt.inc}
 
-
-procedure form_error(num : integer);
-  const errmsgd : array [0..11] of string[31] =
-                  ('Unbekannter Fehler',
-                   'Allgemeiner Fehler',
-                   'Resource-Datei nicht gefunden',
-                   'Doppelter Aufruf nicht mîglich',
-                   'MenÅ noch nicht gezeichnet',
-                   'MenÅ au·erhalb des Bildschirms',
-                   'MenÅ noch aktiv',
-                   'MenÅ nicht initialisiert',
-                   'Dialogbox enthÑlt keinen Button',
-                   'Fehler in Dialogstruktur',
-                   'Dialogbox zu gro·',
-                   'Fehler in MenÅstruktur');
-
-        errmsge : array [0..11] of string[32] =
-                  ('Unknown error',
-                   'General error',
-                   'Resource file not found',
-                   'Double function call not allowed',
-                   'Menu not drawn yet',
-                   'Menu out of screen',
-                   'Menu still used',
-                   'Menu not initialized',
-                   'Button missing in dialog box',
-                   'Error in dialog structure',
-                   'Dialog box too big',
-                   'Error in menu structure');
-
-  var fehler   : integer;
-      but,cbut : byte;
-      odbits   : word;
-      bstr     : string[16];
-
-  begin
-    fehler:=num;
-    if num<=M_ERROR then
-      begin
-        if num<_emin then num:=0
-          else num:=abs(num)-9;
-        write(#7);
-        odbits:=dbits;
-        dbits:=D_MOVE;
-        if eexit_stat=X_CANCEL then
-          begin
-            if (ccode=L_USA) or (ccode=L_GB) then bstr:=' #Quit '
-              else bstr:='#Abbruch';
-            cbut:=0;
-          end
-        else
-          begin
-            bstr:='  #OK  ';
-            cbut:=1;
-          end;
-        if eexit_stat=X_BOTH then
-          begin
-            if (ccode=L_USA) or (ccode=L_GB) then bstr:=bstr+'| #Quit '
-              else bstr:=bstr+'|#Abbruch';
-          end;
-        if (ccode=L_USA) or (ccode=L_GB) then but:=form_alert('ERROR','['+itoa(fehler)+']: '+errmsge[num],bstr,0)
-          else but:=form_alert('FEHLER','['+itoa(fehler)+']: '+errmsgd[num],bstr,0);
-        dbits:=odbits;
-        if (but=cbut) or (eexit_stat=X_CANCEL) then
-          begin
-            hidemouse;
-            writeln;
-            write('  Runtime Error ',fehler,' [ASV]:  ');
-            if (ccode=L_USA) or (ccode=L_GB) then writeln(errmsge[num]) else writeln(errmsgd[num]);
-            writeln;
-            halt;
-          end;
-      end;
-  end;
-
-
 {$I c:\pascal\units\asv_inc\asv_menu.inc}
 
 
@@ -1394,8 +1059,8 @@ procedure menu_inquire;
     byteout[9]:=sel_char;
     byteout[10]:=manzbut;
     byteout[11]:=PC;
-    byteout[12]:=21;
-    byteout[13]:=04;
+    byteout[12]:=20;
+    byteout[13]:=06;
     byteout[14]:=91;
     byteout[15]:=saw_dia;
     byteout[16]:=haw_dia;
@@ -1433,6 +1098,8 @@ procedure menu_inquire;
 
 {$I c:\pascal\units\asv_inc\asv_endp.inc}
 
+{$I c:\pascal\units\asv_inc\asv_objc.inc}
+
 
 procedure init;
 
@@ -1450,64 +1117,15 @@ procedure init;
     do_anum:=form_objins(alphainp);
     form_seterrl(L_FRG);
     form_errexit(X_BOTH);
-    form_setattr(D_CLOSE+D_MOVE);
+    form_setattr(D_CLOSE+D_MOVE+D_GRAF);
     menu_sets(M_PULL);
     menu_resetp;
     menu_setschr(7);
   end;
 
 
-procedure asv_init;
-  var adapfound : boolean;
-
-  begin
-    adapfound:=false;
-    regs.ax:=$1a00;
-    intr($10,regs);
-    if regs.al=$1a then adapfound:=true
-    else
-      begin
-        regs.ah:=$12;
-        regs.bl:=$10;
-        intr($10,regs);
-        if regs.bl<>$10 then adapfound:=true;
-      end;
-    regs.ah:=15;
-    intr($10,regs);
-    if regs.al=7 then vioseg:=$b000 else vioseg:=$b800;
-    farbe:=not((regs.al=0) or (regs.al=2) or (regs.al=7));
-    anzcol:=regs.ah;
-    loff:=anzcol shl 1;
-    if not(adapfound) then anzline:=25
-      else anzline:=byteptr(ptr($40,$84))^+1;
-    regs.ah:=5;
-    regs.al:=0;
-    intr($10,regs);
-    mausda:=false;
-    manzbut:=0;
-    regs.ax:=0;
-    regs.bx:=0;
-    intr($33,regs);
-    if regs.ax=$ffff then
-      begin
-        mausda:=true;
-        manzbut:=regs.bx;
-        regs.ax:=29;
-        regs.bx:=0;
-        intr($33,regs);
-      end;
-    mausvis:=false;
-    asvierror:=0;
-    menu_resetc;
-    showmouse;
-    defmouse($ffff,$7700);
-    mouse_resets;
-    mouse_resett;
-    menu_inquire;
-  end;
-
-
 begin
   init;
   asv_init;
+  objc_init;
 end.

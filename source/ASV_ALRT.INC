@@ -1,4 +1,4 @@
-{ ASV 1.3 ALRT vom 20.04.1991 }
+{ ASV 1.4 ALRT vom 13.06.1991 }
 
 function _dactive : byte;
 
@@ -112,4 +112,79 @@ procedure menu_sets(stat : byte);
   begin
     if stat>M_DROP then stat:=M_PULL;
     mpd_stat:=stat;
+  end;
+
+
+procedure form_error(num : integer);
+  const errmsgd : array [0..11] of string[31] =
+                  ('Unbekannter Fehler',
+                   'Allgemeiner Fehler',
+                   'Resource-Datei nicht gefunden',
+                   'Doppelter Aufruf nicht mîglich',
+                   'MenÅ noch nicht gezeichnet',
+                   'MenÅ au·erhalb des Bildschirms',
+                   'MenÅ noch aktiv',
+                   'MenÅ nicht initialisiert',
+                   'Dialogbox enthÑlt keinen Button',
+                   'Fehler in Dialogstruktur',
+                   'Dialogbox zu gro·',
+                   'Fehler in MenÅstruktur');
+
+        errmsge : array [0..11] of string[32] =
+                  ('Unknown error',
+                   'General error',
+                   'Resource file not found',
+                   'Double function call not allowed',
+                   'Menu not drawn yet',
+                   'Menu out of screen',
+                   'Menu still used',
+                   'Menu not initialized',
+                   'Button missing in dialog box',
+                   'Error in dialog structure',
+                   'Dialog box too big',
+                   'Error in menu structure');
+
+  var fehler   : integer;
+      but,cbut : byte;
+      odbits   : word;
+      bstr     : string[16];
+
+  begin
+    fehler:=num;
+    if num<=M_ERROR then
+      begin
+        if num<_emin then num:=0
+          else num:=abs(num)-9;
+        write(#7);
+        odbits:=dbits;
+        dbits:=D_MOVE;
+        if eexit_stat=X_CANCEL then
+          begin
+            if (ccode=L_USA) or (ccode=L_GB) then bstr:=' #Quit '
+              else bstr:='#Abbruch';
+            cbut:=0;
+          end
+        else
+          begin
+            bstr:='  #OK  ';
+            cbut:=1;
+          end;
+        if eexit_stat=X_BOTH then
+          begin
+            if (ccode=L_USA) or (ccode=L_GB) then bstr:=bstr+'| #Quit '
+              else bstr:=bstr+'|#Abbruch';
+          end;
+        if (ccode=L_USA) or (ccode=L_GB) then but:=form_alert('ERROR','['+itoa(fehler)+']: '+errmsge[num],bstr,0)
+          else but:=form_alert('FEHLER','['+itoa(fehler)+']: '+errmsgd[num],bstr,0);
+        dbits:=odbits;
+        if (but=cbut) or (eexit_stat=X_CANCEL) then
+          begin
+            hidemouse;
+            writeln;
+            write('  Runtime Error ',fehler,' [ASV]:  ');
+            if (ccode=L_USA) or (ccode=L_GB) then writeln(errmsge[num]) else writeln(errmsgd[num]);
+            writeln;
+            halt;
+          end;
+      end;
   end;
