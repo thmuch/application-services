@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Application Services (ASV) 1.5 &ndash; MENUDEMO</title>
+    <script src="https://js-dos.com/6.22/current/js-dos.js"></script>
+    <style>
+        canvas {
+            width: 80%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Application Services (ASV) 1.5 &ndash; MENUDEMO</h1>
+
+<p>This is a demo application from 1991 for the MS-DOS text mode UI library
+    <a href="https://github.com/thmuch/application-services">"Application Services" (ASV)</a>,
+    running in <a href="https://js-dos.com/">JS-DOS</a>. Have fun &#128513;</p>
+
+<canvas id="jsdos"></canvas>
+
+<script>
+    Dos(document.getElementById("jsdos"), {
+        wdosboxUrl: "https://js-dos.com/6.22/current/wdosbox.js",
+        cycles: 1000,
+        autolock: false,
+    }).ready(function (fs, main) {
+        fs.extract("MENUDEMO.EXE.zip").then(function () {
+            main(["-c", "MENUDEMO.EXE"]).then(function (ci) {
+                window.ci = ci;
+            });
+        });
+    });
+</script>
+
+</body>
+</html>
