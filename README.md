@@ -30,6 +30,14 @@ end.
 ```
 
 
+## Demo
+
+Go and try the "offical" [demo application here](https://thmuch.github.io/application-services/)
+(running on [js-dos](https://github.com/caiiiycuk/js-dos) &#x1F603;).
+
+![MENUDEMO](docs/asv15-menudemo.png)
+
+
 ## Disclaimer
 
 This source code is completely out of date. It is provided as-is without any warranty.
